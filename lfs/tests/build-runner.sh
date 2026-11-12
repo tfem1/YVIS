@@ -36,6 +36,7 @@ echo "must be skipped" > "$LFS/tools/block2.out"
 
 # --- block 3
 echo kept > "$LFS/tools/block3.out"
+cat > /dev/null   # reads stdin, as Expect's pty check does
 SH
 echo 'false' > "$YVIS_LFS_BOOK/ch05/003-ch-tools-boom.sh"
 cat > "$YVIS_LFS_BOOK/ch05/000-ch-tools-badcd.sh" <<'SH'
@@ -63,6 +64,7 @@ read -r who tgt lc mf < "$LFS/tools/env.out"
 [ "$who" = lfs ] && [ "$tgt" = x86_64-lfs-linux-gnu ] && [ "$lc" = POSIX ] && [ "${mf#-j}" -ge 1 ] \
   && ok "chapter 5 runs as lfs with the book's environment"
 [ "$(stat -c %U "$LFS/tools/hello.out")" = lfs ] && ok "files built in chapter 5 belong to lfs"
+grep -q "ch05 003 ch-tools-boom" "$T/log" && ok "a section reading stdin does not swallow the following ones"
 [ ! -e "$LFS/tools/block2.out" ] && [ "$(cat "$LFS/tools/block3.out")" = kept ] && ok "<id>#<block> in lfs/skip drops only that block"
 
 echo 'echo replaced > "$LFS/tools/boom.out"' > "$T/override.sh"

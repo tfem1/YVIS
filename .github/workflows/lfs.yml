@@ -18,6 +18,10 @@ on:
         description: "Reuse the lfs-toolchain artifact of this run id (skips chapters 5-7)"
         type: string
         default: ""
+      system_run:
+        description: "Resume chapter 8 from the lfs-system artifact of this run id"
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -28,7 +32,7 @@ env:
 
 jobs:
   toolchain:
-    if: inputs.toolchain_run == ''
+    if: inputs.toolchain_run == '' && inputs.system_run == ''
     runs-on: ubuntu-24.04
     timeout-minutes: 330
     steps:
@@ -92,10 +96,19 @@ jobs:
           df -h / /mnt
 
       - uses: actions/download-artifact@v4
+        if: inputs.system_run == ''
         with:
           name: lfs-toolchain
           path: ${{ runner.temp }}
           run-id: ${{ inputs.toolchain_run || github.run_id }}
+          github-token: ${{ github.token }}
+
+      - uses: actions/download-artifact@v4
+        if: inputs.system_run != ''
+        with:
+          name: lfs-system
+          path: ${{ runner.temp }}
+          run-id: ${{ inputs.system_run }}
           github-token: ${{ github.token }}
 
       - uses: actions/cache/restore@v4
@@ -105,7 +118,7 @@ jobs:
 
       - name: Restore $LFS and sources
         run: |
-          sudo -E bash lfs/build.sh unpack "$RUNNER_TEMP/lfs-toolchain.tar.zst"
+          sudo -E bash lfs/build.sh unpack "$RUNNER_TEMP"/lfs-*.tar.zst
           bash lfs/fetch-sources.sh "$RUNNER_TEMP/sources"
           sudo mkdir -p "$LFS/sources"
           sudo cp "$RUNNER_TEMP"/sources/* "$LFS/sources/"

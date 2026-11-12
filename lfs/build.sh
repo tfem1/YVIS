@@ -157,22 +157,24 @@ run_section() { # chapter order id tarball
   fi
   local start=$SECONDS
   log "$ch $order $id ($ctx${tb:+, $tb})"
+  # stdin is the list of sections being read by run(): a command reading
+  # stdin (Expect's pty check does) would swallow the rest of the list.
   case $ctx in
     lfs)
       script_for "$ch" "$id" "$tb" "$file" "$LFS/sources" > /home/lfs/.yvis-step.sh
       chown lfs /home/lfs/.yvis-step.sh
-      su - lfs -c "env -i HOME=/home/lfs TERM=${TERM:-xterm} bash -c '. ~/.yvis-env && bash -e ~/.yvis-step.sh'"
+      su - lfs -c "env -i HOME=/home/lfs TERM=${TERM:-xterm} bash -c '. ~/.yvis-env && bash -e ~/.yvis-step.sh'" </dev/null
       ;;
     host)
       script_for "$ch" "$id" "$tb" "$file" "$LFS/sources" > "$STATE/step.sh"
-      LFS=$LFS bash -e "$STATE/step.sh"
+      LFS=$LFS bash -e "$STATE/step.sh" </dev/null
       ;;
     chroot)
       do_mount >/dev/null
       script_for "$ch" "$id" "$tb" "$file" /sources > "$LFS/.yvis/step.sh"
       chroot "$LFS" /usr/bin/env -i HOME=/root TERM="${TERM:-xterm}" \
         PATH=/usr/bin:/usr/sbin MAKEFLAGS="-j$JOBS" TESTSUITEFLAGS="-j$JOBS" \
-        /bin/bash -e /.yvis/step.sh
+        /bin/bash -e /.yvis/step.sh </dev/null
       ;;
   esac
   touch "$STATE/done/$id"
