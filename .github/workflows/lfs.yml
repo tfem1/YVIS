@@ -45,21 +45,21 @@ jobs:
           sudo cp "$RUNNER_TEMP"/sources/* "$LFS/sources/"
 
       - name: Host and $LFS (chapter 4)
-        run: sudo -E lfs/build.sh host
+        run: sudo -E bash lfs/build.sh host
 
       - name: Chapter 5 — cross toolchain
-        run: sudo -E lfs/build.sh run ch05
+        run: sudo -E bash lfs/build.sh run ch05
 
       - name: Chapter 6 — temporary tools
-        run: sudo -E lfs/build.sh run ch06
+        run: sudo -E bash lfs/build.sh run ch06
 
       - name: Chapter 7 — chroot and additional tools
-        run: sudo -E lfs/build.sh run ch07
+        run: sudo -E bash lfs/build.sh run ch07
 
       - name: Pack
         if: always()
         run: |
-          sudo -E lfs/build.sh pack "$RUNNER_TEMP/lfs-toolchain.tar.zst"
+          sudo -E bash lfs/build.sh pack "$RUNNER_TEMP/lfs-toolchain.tar.zst"
           ls "$LFS/.yvis/done" | wc -l | xargs echo "sections done:" >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
@@ -95,19 +95,19 @@ jobs:
 
       - name: Restore $LFS and sources
         run: |
-          sudo -E lfs/build.sh unpack "$RUNNER_TEMP/lfs-toolchain.tar.zst"
+          sudo -E bash lfs/build.sh unpack "$RUNNER_TEMP/lfs-toolchain.tar.zst"
           bash lfs/fetch-sources.sh "$RUNNER_TEMP/sources"
           sudo mkdir -p "$LFS/sources"
           sudo cp "$RUNNER_TEMP"/sources/* "$LFS/sources/"
           sudo ln -sf bash /bin/sh
 
       - name: Chapter 8 — base system
-        run: sudo -E lfs/build.sh run ch08
+        run: sudo -E bash lfs/build.sh run ch08
 
       - name: Pack
         if: always()
         run: |
-          sudo -E lfs/build.sh pack "$RUNNER_TEMP/lfs-system.tar.zst"
+          sudo -E bash lfs/build.sh pack "$RUNNER_TEMP/lfs-system.tar.zst"
           ls "$LFS/.yvis/done" | wc -l | xargs echo "sections done:" >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
