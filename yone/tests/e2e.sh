@@ -241,6 +241,22 @@ mv repo repo.offline
 fails "${Y[@]}" install --offline multi; grep -q "not in the cache" last.log && ok "offline mode never touches the network"
 mv repo.offline repo
 
+echo "== file capabilities"
+if [ "$(id -u)" = 0 ] && command -v setcap >/dev/null && setcap cap_net_raw+ep "$(cp /bin/true "$T/captest" && echo "$T/captest")" 2>/dev/null; then
+recipe r/capped <<'EOF'
+name = capped
+version = 1.0
+@package
+install -Dm755 /bin/true "$PKGDIR/usr/bin/capped"
+setcap cap_net_raw+ep "$PKGDIR/usr/bin/capped"
+EOF
+build r/capped; publish; "${Y[@]}" update >/dev/null; "${Y[@]}" install capped >/dev/null
+getcap "$ROOT/usr/bin/capped" | grep -q cap_net_raw && ok "setcap capabilities survive build and install"
+"${Y[@]}" remove capped >/dev/null
+else
+  echo "  - skipped (needs root and setcap)"; n=$((n + 1))
+fi
+
 echo "== merged /usr (lib -> usr/lib, as on LFS)"
 ln -s usr/lib "${ROOT:?}/lib"
 recipe r/aliasa <<'EOF'

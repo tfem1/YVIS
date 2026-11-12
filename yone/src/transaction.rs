@@ -934,6 +934,17 @@ fn extract(
                     w.hasher.finalize_hex()
                 };
                 set_mode(&tmp, e.mode)?;
+                for (k, v) in &e.xattrs {
+                    if k != util::CAPABILITY_XATTR {
+                        continue; // only file capabilities are honoured
+                    }
+                    if let Err(err) = util::set_capability(&tmp, v) {
+                        ui.progress_end();
+                        ui.warn(&format!(
+                            "/{rel}: cannot set its file capability ({err}); it may lack privileges it needs"
+                        ));
+                    }
+                }
                 done_bytes += e.size;
                 // configuration files changed by the administrator are preserved
                 let user_modified = (info.backup.contains(&rel) || info.backup.contains(&spelled))

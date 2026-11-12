@@ -228,7 +228,17 @@ pub fn write_package(
                 let t = fs::read_link(&n.abs)?;
                 tw.add_symlink(&n.rel, &t.to_string_lossy())?;
             } else if ft.is_file() {
-                tw.add_file(&n.rel, mode, n.meta.len(), &mut File::open(&n.abs)?)?;
+                let xattrs: Vec<(String, Vec<u8>)> = util::get_capability(&n.abs)
+                    .ctx(|| format!("read capabilities of {}", n.rel))?
+                    .map(|v| vec![(util::CAPABILITY_XATTR.to_string(), v)])
+                    .unwrap_or_default();
+                tw.add_file_xattrs(
+                    &n.rel,
+                    mode,
+                    n.meta.len(),
+                    &mut File::open(&n.abs)?,
+                    &xattrs,
+                )?;
             } else {
                 bail!("{}: unsupported file type (device, fifo or socket)", n.rel);
             }

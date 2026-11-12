@@ -73,6 +73,62 @@ pub fn ignore_missing(r: std::io::Result<()>) -> std::io::Result<()> {
     }
 }
 
+/// The only extended attribute packages may carry: file capabilities
+/// (setcap), e.g. cap_net_raw for ping or cap_sys_nice for kwin_wayland.
+pub const CAPABILITY_XATTR: &str = "security.capability";
+
+extern "C" {
+    fn lgetxattr(
+        path: *const std::ffi::c_char,
+        name: *const std::ffi::c_char,
+        value: *mut u8,
+        size: usize,
+    ) -> isize;
+    fn lsetxattr(
+        path: *const std::ffi::c_char,
+        name: *const std::ffi::c_char,
+        value: *const u8,
+        size: usize,
+        flags: i32,
+    ) -> i32;
+}
+
+fn cstr(p: &Path) -> std::io::Result<std::ffi::CString> {
+    use std::os::unix::ffi::OsStrExt;
+    std::ffi::CString::new(p.as_os_str().as_bytes())
+        .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "NUL in path"))
+}
+
+/// The file capability of `p`, if it has one.
+pub fn get_capability(p: &Path) -> std::io::Result<Option<Vec<u8>>> {
+    let path = cstr(p)?;
+    let name = std::ffi::CString::new(CAPABILITY_XATTR).unwrap();
+    let mut buf = vec![0u8; 256];
+    // SAFETY: valid NUL-terminated strings, and buf outlives the call.
+    let n = unsafe { lgetxattr(path.as_ptr(), name.as_ptr(), buf.as_mut_ptr(), buf.len()) };
+    if n < 0 {
+        let e = std::io::Error::last_os_error();
+        // ENODATA (61): no capability; EOPNOTSUPP (95): filesystem without xattrs
+        return match e.raw_os_error() {
+            Some(61) | Some(95) => Ok(None),
+            _ => Err(e),
+        };
+    }
+    buf.truncate(n as usize);
+    Ok(Some(buf))
+}
+
+pub fn set_capability(p: &Path, value: &[u8]) -> std::io::Result<()> {
+    let path = cstr(p)?;
+    let name = std::ffi::CString::new(CAPABILITY_XATTR).unwrap();
+    // SAFETY: valid NUL-terminated strings; value is read for value.len() bytes.
+    let r = unsafe { lsetxattr(path.as_ptr(), name.as_ptr(), value.as_ptr(), value.len(), 0) };
+    if r != 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok(())
+}
+
 /// Resolve the directories of a package path inside `root` the way a
 /// chroot would: absolute symlinks are relative to `root`, `..` never climbs
 /// above it. The last component is not followed (it is what gets replaced).

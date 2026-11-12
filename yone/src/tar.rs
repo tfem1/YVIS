@@ -19,6 +19,22 @@ pub struct Entry {
     pub mode: u32,
     pub size: u64,
     pub kind: Kind,
+    /// Extended attributes from pax `SCHILY.xattr.<name>` records.
+    pub xattrs: Vec<(String, Vec<u8>)>,
+}
+
+/// One pax extended-header record: "<len> <key>=<value>\n", where <len>
+/// counts the whole record, its own digits included.
+fn pax_record(key: &str, value: &[u8]) -> Vec<u8> {
+    let body = key.len() + value.len() + 3; // ' ', '=', '\n'
+    let mut len = body + 1;
+    while len != body + len.to_string().len() {
+        len = body + len.to_string().len();
+    }
+    let mut r = format!("{len} {key}=").into_bytes();
+    r.extend_from_slice(value);
+    r.push(b'\n');
+    r
 }
 
 // ---------------------------------------------------------------- writer
@@ -130,6 +146,28 @@ impl<W: Write> TarWriter<W> {
 
     pub fn add_symlink(&mut self, path: &str, target: &str) -> io::Result<()> {
         self.header(path, 0o777, 0, b'2', target)
+    }
+
+    /// A regular file preceded by a pax header carrying its extended
+    /// attributes (only when there are some).
+    pub fn add_file_xattrs<R: Read>(
+        &mut self,
+        path: &str,
+        mode: u32,
+        size: u64,
+        data: &mut R,
+        xattrs: &[(String, Vec<u8>)],
+    ) -> io::Result<()> {
+        if !xattrs.is_empty() {
+            let mut pax = vec![];
+            for (k, v) in xattrs {
+                pax.extend(pax_record(&format!("SCHILY.xattr.{k}"), v));
+            }
+            self.raw_header("././@PaxHeader", "", 0o644, pax.len() as u64, b'x', "")?;
+            self.w.write_all(&pax)?;
+            self.pad(pax.len() as u64)?;
+        }
+        self.add_file(path, mode, size, data)
     }
 
     pub fn add_file<R: Read>(
@@ -250,6 +288,7 @@ impl<R: Read> TarReader<R> {
         self.skip_current()?;
         let mut long_name: Option<String> = None;
         let mut long_link: Option<String> = None;
+        let mut xattrs: Vec<(String, Vec<u8>)> = vec![];
         loop {
             let mut h = [0u8; BLOCK];
             if !self.read_block(&mut h)? {
@@ -286,10 +325,17 @@ impl<R: Read> TarReader<R> {
                 b'x' => {
                     let v = self.read_payload(size)?;
                     for (k, val) in parse_pax(&v)? {
+                        let text = || {
+                            String::from_utf8(val.clone()).map_err(|_| bad("non UTF-8 pax path"))
+                        };
                         match k.as_str() {
-                            "path" => long_name = Some(val),
-                            "linkpath" => long_link = Some(val),
-                            _ => {}
+                            "path" => long_name = Some(text()?),
+                            "linkpath" => long_link = Some(text()?),
+                            _ => {
+                                if let Some(name) = k.strip_prefix("SCHILY.xattr.") {
+                                    xattrs.push((name.to_string(), val));
+                                }
+                            }
                         }
                     }
                     continue;
@@ -336,6 +382,7 @@ impl<R: Read> TarReader<R> {
                 mode,
                 size,
                 kind,
+                xattrs,
             }));
         }
     }
@@ -356,7 +403,7 @@ impl<R: Read> TarReader<R> {
     }
 }
 
-fn parse_pax(data: &[u8]) -> io::Result<Vec<(String, String)>> {
+fn parse_pax(data: &[u8]) -> io::Result<Vec<(String, Vec<u8>)>> {
     let mut out = vec![];
     let mut i = 0;
     while i < data.len() {
@@ -379,7 +426,7 @@ fn parse_pax(data: &[u8]) -> io::Result<Vec<(String, String)>> {
             .ok_or_else(|| bad("bad pax record"))?;
         out.push((
             String::from_utf8_lossy(&rec[..eq]).into_owned(),
-            String::from_utf8(rec[eq + 1..].to_vec()).map_err(|_| bad("non UTF-8 pax value"))?,
+            rec[eq + 1..].to_vec(),
         ));
         i += len;
     }
@@ -420,6 +467,41 @@ mod tests {
         let e = tr.next_entry().unwrap().unwrap();
         assert_eq!(e.kind, Kind::Symlink("t".repeat(120)));
         assert!(tr.next_entry().unwrap().is_none());
+    }
+
+    #[test]
+    fn xattrs_roundtrip() {
+        let cap = vec![
+            1u8, 0, 0, 2, 0, 0x20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ];
+        for len in [0usize, 5, 88, 500] {
+            let r = pax_record("k", &vec![b'a'; len]);
+            let digits: usize =
+                std::str::from_utf8(&r[..r.iter().position(|&b| b == b' ').unwrap()])
+                    .unwrap()
+                    .parse()
+                    .unwrap();
+            assert_eq!(digits, r.len(), "record length for {len}");
+        }
+        let mut tw = TarWriter::new(Vec::new(), 0);
+        let xa = vec![("security.capability".to_string(), cap.clone())];
+        tw.add_file_xattrs("usr/bin/ping", 0o755, 2, &mut &b"hi"[..], &xa)
+            .unwrap();
+        tw.add_file("usr/bin/plain", 0o755, 0, &mut &b""[..])
+            .unwrap();
+        let data = tw.finish().unwrap();
+        let mut tr = TarReader::new(&data[..]);
+        let e = tr.next_entry().unwrap().unwrap();
+        assert_eq!(e.path, "usr/bin/ping");
+        assert_eq!(e.xattrs, xa);
+        let mut v = vec![];
+        tr.copy_data(&mut v).unwrap();
+        assert_eq!(v, b"hi");
+        let e = tr.next_entry().unwrap().unwrap();
+        assert!(
+            e.xattrs.is_empty(),
+            "attributes must not leak to the next entry"
+        );
     }
 
     #[test]
