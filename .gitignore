@@ -1,0 +1,8 @@
+/yone/target/
+*.yon
+*.yon.sig
+*.key
+.yone-work/
+.yone-sources/
+/out/
+*.iso
