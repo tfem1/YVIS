@@ -16,7 +16,8 @@
 #
 # lfs/overrides/<section-id>.sh   replaces the extracted commands
 # lfs/overrides/<section-id>.post runs after them (same shell, same directory)
-# lfs/skip                        sections never run (one id per line)
+# lfs/skip                        sections never run (one id per line), or
+#                                 single blocks of a section: <id>#<block>
 # $LFS/.yvis/done/<section-id>    marks a finished section
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -32,6 +33,17 @@ die() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 [ "$(id -u)" = 0 ] || die "run as root (sudo)"
 
 skipped() { grep -qxF "$1" "$HERE/skip" 2>/dev/null; }
+
+# The book's commands minus the blocks listed as <id>#<n> in lfs/skip.
+book_commands() { # id file
+  local blocks
+  blocks=$(sed -n "s/^$1#\([0-9]*\)\s*$/\1/p" "$HERE/skip" 2>/dev/null | tr '\n' ' ')
+  awk -v skip=" $blocks" '
+    /^# --- block [0-9]+/ { n = $4; sub(/:.*/, "", n); off = index(skip, " " n " ") > 0
+                           if (off) print "# --- block " n ": SKIPPED (lfs/skip)" }
+    !off { print }
+  ' "$2"
+}
 
 # ------------------------------------------------------------------ host
 
@@ -124,7 +136,7 @@ script_for() { # chapter id tarball file srcdir
       echo "# override: lfs/overrides/$id.sh"
       cat "$HERE/overrides/$id.sh"
     else
-      cat "$file"
+      book_commands "$id" "$file"
     fi
     if [ -f "$HERE/overrides/$id.post" ]; then
       echo "# lfs/overrides/$id.post"

@@ -5,7 +5,9 @@
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 [ "$(id -u)" = 0 ] || { echo "needs root"; exit 77; }
-T=$(mktemp -d); chmod 755 "$T"; trap 'rm -rf "$T"; userdel -r lfs >/dev/null 2>&1 || true' EXIT
+T=$(mktemp -d); chmod 755 "$T"
+cp "$HERE/skip" "$T/skip.orig"
+trap 'cp "$T/skip.orig" "$HERE/skip"; rm -rf "$T"; userdel -r lfs >/dev/null 2>&1 || true' EXIT
 export LFS=$T/lfs YVIS_LFS_BOOK=$T/book
 n=0; ok() { n=$((n + 1)); echo "  ✓ $*"; }; die() { echo "  ✗ $*"; exit 1; }
 
@@ -26,7 +28,14 @@ bash build.sh "$LFS/tools/hello.out"
 pwd > "$LFS/tools/hello.pwd"
 SH
 cat > "$YVIS_LFS_BOOK/ch05/002-ch-tools-env.sh" <<'SH'
+# --- block 1
 echo "$(id -un) $LFS_TGT $LC_ALL $MAKEFLAGS" > "$LFS/tools/env.out"
+
+# --- block 2
+echo "must be skipped" > "$LFS/tools/block2.out"
+
+# --- block 3
+echo kept > "$LFS/tools/block3.out"
 SH
 echo 'false' > "$YVIS_LFS_BOOK/ch05/003-ch-tools-boom.sh"
 cat > "$YVIS_LFS_BOOK/ch05/000-ch-tools-badcd.sh" <<'SH'
@@ -35,6 +44,7 @@ SH
 echo 'chown -R root:root $LFS/tools && echo owned > $LFS/owner.out' > "$YVIS_LFS_BOOK/ch07/004-ch-tools-changingowner.sh"
 
 bash "$HERE/build.sh" host >/dev/null 2>&1 || die "host step failed"
+echo "ch-tools-env#2" >> "$HERE/skip"
 cp "$T/hello-1.0.tar.gz" "$LFS/sources/"
 [ -L "$LFS/bin" ] && id lfs >/dev/null && ok "host: layout and lfs user"
 
@@ -53,6 +63,7 @@ read -r who tgt lc mf < "$LFS/tools/env.out"
 [ "$who" = lfs ] && [ "$tgt" = x86_64-lfs-linux-gnu ] && [ "$lc" = POSIX ] && [ "${mf#-j}" -ge 1 ] \
   && ok "chapter 5 runs as lfs with the book's environment"
 [ "$(stat -c %U "$LFS/tools/hello.out")" = lfs ] && ok "files built in chapter 5 belong to lfs"
+[ ! -e "$LFS/tools/block2.out" ] && [ "$(cat "$LFS/tools/block3.out")" = kept ] && ok "<id>#<block> in lfs/skip drops only that block"
 
 echo 'echo replaced > "$LFS/tools/boom.out"' > "$T/override.sh"
 mkdir -p "$HERE/overrides"; cp "$T/override.sh" "$HERE/overrides/ch-tools-boom.sh"

@@ -14,15 +14,21 @@ on:
         type: choice
         options: [system, toolchain]
         default: system
+      toolchain_run:
+        description: "Reuse the lfs-toolchain artifact of this run id (skips chapters 5-7)"
+        type: string
+        default: ""
 
 permissions:
   contents: read
+  actions: read  # download the toolchain artifact of an earlier run
 
 env:
   LFS: /mnt/lfs
 
 jobs:
   toolchain:
+    if: inputs.toolchain_run == ''
     runs-on: ubuntu-24.04
     timeout-minutes: 330
     steps:
@@ -72,7 +78,9 @@ jobs:
 
   system:
     needs: toolchain
-    if: inputs.stop_after == 'system'
+    if: >-
+      always() && inputs.stop_after == 'system' &&
+      (needs.toolchain.result == 'success' || needs.toolchain.result == 'skipped')
     runs-on: ubuntu-24.04
     timeout-minutes: 350
     steps:
@@ -87,6 +95,8 @@ jobs:
         with:
           name: lfs-toolchain
           path: ${{ runner.temp }}
+          run-id: ${{ inputs.toolchain_run || github.run_id }}
+          github-token: ${{ github.token }}
 
       - uses: actions/cache/restore@v4
         with:

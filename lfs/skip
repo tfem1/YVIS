@@ -1,3 +1,9 @@
 # Book sections YVIS never runs (one id per line).
 # 8.2 only shows illustrative package-management examples.
 ch-system-pkgmgt
+# 8.5 Glibc, blocks 10-13: only for upgrading a running LFS older than 12.1
+# (remove nscd, systemctl disable, DESTDIR install, fixincludes cleanup).
+ch-system-glibc#10
+ch-system-glibc#11
+ch-system-glibc#12
+ch-system-glibc#13
