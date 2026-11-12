@@ -267,7 +267,7 @@ exec 9>&-
 "${Y[@]}" verify >/dev/null && ok "final verify"
 # "cond && ok msg" silently skips a failed check under set -e: make sure
 # every check written in this file actually ran and passed.
-want=$(grep -c ' ok "' "$SELF")
+want=$(grep -cE '(^|[;&|] *)ok "' "$SELF")
 [ "$n" -eq "$want" ] || die "only $n of $want checks passed (a check failed silently)"
 echo
 echo "all $n checks passed ($COMP)"

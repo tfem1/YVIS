@@ -47,6 +47,6 @@ ok "a GPU missing from the driver's list is not selected"
 mkdir -p "$T/empty"
 run "$T/empty" | grep -qx nvidia=none && ok "no PCI devices at all (VM without GPU)"
 
-want=$(grep -c ' ok "' "$0")
+want=$(grep -cE '(^|[;&|] *)ok "' "$0")
 [ "$n" -eq "$want" ] || die "only $n of $want checks passed"
 echo "all $n checks passed"

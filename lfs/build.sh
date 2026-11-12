@@ -25,7 +25,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 export LFS=${LFS:-/mnt/lfs}
 JOBS=${JOBS:-$(nproc)}
 STATE=$LFS/.yvis
-BOOK=$HERE/book
+BOOK=${YVIS_LFS_BOOK:-$HERE/book}
 
 log() { printf '\033[1;35m==>\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -112,9 +112,11 @@ script_for() { # chapter id tarball file srcdir
     echo "trap 'echo \"!! section $id failed at line \$LINENO\" >&2' ERR"
     if [ "$tb" != - ]; then
       local top
-      top=$(tar -tf "$LFS/sources/$tb" 2>/dev/null | head -1 | cut -d/ -f1)
+      # head closes the pipe early: tar then fails, which pipefail would report
+      top=$(set +o pipefail; tar -tf "$LFS/sources/$tb" 2>/dev/null | head -n 1 | cut -d/ -f1)
       [ -n "$top" ] || die "$tb: cannot list the archive"
-      echo "cd $src && rm -rf '$top' && tar -xf '$tb' && cd '$top'"
+      # one command per line: set -e ignores failures inside && lists
+      printf '%s\n' "cd $src" "rm -rf '$top'" "tar -xf '$tb'" "cd '$top'"
     else
       echo "cd /"
     fi
@@ -128,7 +130,7 @@ script_for() { # chapter id tarball file srcdir
       echo "# lfs/overrides/$id.post"
       cat "$HERE/overrides/$id.post"
     fi
-    [ "$tb" != - ] && echo "cd $src && rm -rf '$top'"
+    [ "$tb" != - ] && printf '%s\n' "cd $src" "rm -rf '$top'"
     echo "true"
   }
 }
