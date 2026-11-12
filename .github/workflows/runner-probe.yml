@@ -1,0 +1,45 @@
+# Measures what a GitHub-hosted runner actually offers before the LFS build
+# is designed around it (milestone 4). Run it manually and read the summary.
+name: runner-probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Hardware and limits
+        run: |
+          {
+            echo "## Runner capabilities"
+            echo '```'
+            echo "CPU threads: $(nproc)"
+            lscpu | grep -E 'Model name|Thread|Core|Socket' || true
+            free -h
+            echo
+            df -h / /mnt 2>/dev/null || df -h /
+            echo
+            echo "kernel: $(uname -r)"
+            echo "user namespaces: $(cat /proc/sys/kernel/unprivileged_userns_clone 2>/dev/null || echo n/a)"
+            echo "kvm: $(test -e /dev/kvm && echo available || echo absent)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Disk space that can be reclaimed
+        run: |
+          before=$(df --output=avail -B1G / | tail -1)
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force >/dev/null 2>&1 || true
+          after=$(df --output=avail -B1G / | tail -1)
+          echo "Free on / : ${before} GiB -> ${after} GiB after cleanup" >> "$GITHUB_STEP_SUMMARY"
+      - name: Compile benchmark (binutils, as LFS SBU reference)
+        run: |
+          curl -fsSLO https://ftp.gnu.org/gnu/binutils/binutils-2.44.tar.xz
+          tar xf binutils-2.44.tar.xz && mkdir build && cd build
+          start=$(date +%s)
+          ../binutils-2.44/configure --disable-nls --disable-werror >/dev/null
+          make -j"$(nproc)" >/dev/null
+          echo "1 SBU (binutils pass 1 approximation) = $(( $(date +%s) - start )) s with -j$(nproc)" >> "$GITHUB_STEP_SUMMARY"

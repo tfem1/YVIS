@@ -1,0 +1,63 @@
+name: yone
+
+on:
+  push:
+    paths: ["yone/**", ".github/workflows/yone.yml"]
+  pull_request:
+    paths: ["yone/**", ".github/workflows/yone.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: yone
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: rustup toolchain install stable --profile minimal --component rustfmt,clippy && rustup default stable
+      - name: Format
+        run: cargo fmt --check
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Unit tests
+        run: cargo test
+
+  e2e:
+    needs: check
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        compression: [zstd, xz]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Runtime tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends zstd xz-utils openssl curl
+      - name: Build
+        run: cargo build
+      - name: End-to-end suite
+        run: ./tests/e2e.sh
+        env:
+          YONE_TEST_COMPRESSION: ${{ matrix.compression }}
+
+  release-binary:
+    needs: e2e
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static release build
+        run: |
+          rustup target add x86_64-unknown-linux-musl
+          sudo apt-get update && sudo apt-get install -y musl-tools
+          cargo build --release --target x86_64-unknown-linux-musl
+          ./target/x86_64-unknown-linux-musl/release/yone --version
+          sha256sum target/x86_64-unknown-linux-musl/release/yone
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yone-x86_64-linux-musl
+          path: yone/target/x86_64-unknown-linux-musl/release/yone

@@ -1,0 +1,21 @@
+[package]
+name = "yone"
+version = "0.1.0"
+edition = "2021"
+description = "Yone — the package manager of YVIS OS"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/yvis/yvis"
+rust-version = "1.75"
+
+# Yone deliberately has zero third-party crates: it must build inside a
+# freshly bootstrapped LFS system with nothing but rustc and cargo, and it
+# keeps the trusted code base small. Cryptography is delegated to OpenSSL
+# (ed25519) and compression to the system xz/zstd binaries, all of which are
+# part of the LFS base system.
+[dependencies]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
