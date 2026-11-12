@@ -6,3 +6,4 @@
 .yone-sources/
 /out/
 *.iso
+__pycache__/
