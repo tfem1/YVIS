@@ -1,0 +1,120 @@
+# chapter	order	section	tarball	title
+ch05	002	ch-tools-binutils-pass1	binutils-2.47.tar.xz	5.2 Binutils-2.47 - Pass 1
+ch05	003	ch-tools-gcc-pass1	gcc-16.2.0.tar.xz	5.3 GCC-16.2.0 - Pass 1
+ch05	004	ch-tools-linux-headers	linux-7.1.8.tar.xz	5.4 Linux-7.1.8 API Headers
+ch05	005	ch-tools-glibc	glibc-2.44.tar.xz	5.5 Glibc-2.44
+ch05	006	ch-tools-libstdcpp	gcc-16.2.0.tar.xz	5.6 Libstdc++ from GCC-16.2.0
+ch06	008	ch-tools-m4	m4-1.4.21.tar.xz	6.2 M4-1.4.21
+ch06	009	ch-tools-ncurses	ncurses-6.6.tar.gz	6.3 Ncurses-6.6
+ch06	010	ch-tools-bash	bash-5.3.tar.gz	6.4 Bash-5.3
+ch06	011	ch-tools-coreutils	coreutils-9.11.tar.xz	6.5 Coreutils-9.11
+ch06	012	ch-tools-diffutils	diffutils-3.12.tar.xz	6.6 Diffutils-3.12
+ch06	013	ch-tools-file	file-5.48.tar.gz	6.7 File-5.48
+ch06	014	ch-tools-findutils	findutils-4.11.0.tar.xz	6.8 Findutils-4.11.0
+ch06	015	ch-tools-gawk	gawk-5.4.1.tar.xz	6.9 Gawk-5.4.1
+ch06	016	ch-tools-grep	grep-3.12.tar.xz	6.10 Grep-3.12
+ch06	017	ch-tools-gzip	gzip-1.14.tar.xz	6.11 Gzip-1.14
+ch06	018	ch-tools-make	make-4.4.1.tar.gz	6.12 Make-4.4.1
+ch06	019	ch-tools-patch	patch-2.8.tar.xz	6.13 Patch-2.8
+ch06	020	ch-tools-sed	sed-4.10.tar.xz	6.14 Sed-4.10
+ch06	021	ch-tools-tar	tar-1.35.tar.xz	6.15 Tar-1.35
+ch06	022	ch-tools-xz	xz-5.8.3.tar.xz	6.16 Xz-5.8.3
+ch06	023	ch-tools-binutils-pass2	binutils-2.47.tar.xz	6.17 Binutils-2.47 - Pass 2
+ch06	024	ch-tools-gcc-pass2	gcc-16.2.0.tar.xz	6.18 GCC-16.2.0 - Pass 2
+ch07	026	ch-tools-changingowner	-	7.2 Changing Ownership
+ch07	027	ch-tools-kernfs	-	7.3 Preparing Virtual Kernel File Systems
+ch07	028	ch-tools-chroot	-	7.4 Entering the Chroot Environment
+ch07	029	ch-tools-creatingdirs	-	7.5 Creating Directories
+ch07	030	ch-tools-createfiles	-	7.6 Creating Essential Files and Symlinks
+ch07	031	ch-tools-gettext	gettext-1.0.tar.xz	7.7 Gettext-1.0
+ch07	032	ch-tools-bison	bison-3.8.2.tar.xz	7.8 Bison-3.8.2
+ch07	033	ch-tools-perl	perl-5.44.0.tar.xz	7.9 Perl-5.44.0
+ch07	034	ch-tools-zlib	zlib-1.3.2.tar.gz	7.10 Zlib-1.3.2
+ch07	035	ch-tools-mpdecimal	mpdecimal-4.0.1.tar.gz	7.11 mpdecimal-4.0.1
+ch07	036	ch-tools-Python	Python-3.14.7.tar.xz	7.12 Python-3.14.7
+ch07	037	ch-tools-texinfo	texinfo-7.3.tar.xz	7.13 Texinfo-7.3
+ch07	038	ch-tools-util-linux	util-linux-2.42.2.tar.xz	7.14 Util-linux-2.42.2
+ch07	039	ch-tools-cleanup	-	7.15 Cleaning up and Saving the Temporary System
+ch08	041	ch-system-pkgmgt	-	8.2 Package Management
+ch08	042	ch-system-man-pages	man-pages-6.18.tar.xz	8.3 Man-pages-6.18
+ch08	043	ch-system-iana-etc	iana-etc-20260805.tar.gz	8.4 Iana-Etc-20260805
+ch08	044	ch-system-glibc	glibc-2.44.tar.xz	8.5 Glibc-2.44
+ch08	045	ch-system-zlib	zlib-1.3.2.tar.gz	8.6 Zlib-1.3.2
+ch08	046	ch-system-bzip2	bzip2-1.0.8.tar.gz	8.7 Bzip2-1.0.8
+ch08	047	ch-system-xz	xz-5.8.3.tar.xz	8.8 Xz-5.8.3
+ch08	048	ch-system-lz4	lz4-1.10.0.tar.gz	8.9 Lz4-1.10.0
+ch08	049	ch-system-zstd	zstd-1.5.7.tar.gz	8.10 Zstd-1.5.7
+ch08	050	ch-system-file	file-5.48.tar.gz	8.11 File-5.48
+ch08	051	ch-system-readline	readline-8.3.tar.gz	8.12 Readline-8.3
+ch08	052	ch-system-pcre2	pcre2-10.47.tar.bz2	8.13 Pcre2-10.47
+ch08	053	ch-system-m4	m4-1.4.21.tar.xz	8.14 M4-1.4.21
+ch08	054	ch-system-bc	bc-7.0.3.tar.xz	8.15 Bc-7.0.3
+ch08	055	ch-system-flex	flex-2.6.4.tar.gz	8.16 Flex-2.6.4
+ch08	056	ch-system-tcl	tcl8.6.18-src.tar.gz	8.17 Tcl-8.6.18
+ch08	057	ch-system-expect	expect5.45.4.tar.gz	8.18 Expect-5.45.4
+ch08	058	ch-system-dejagnu	dejagnu-1.6.3.tar.gz	8.19 DejaGNU-1.6.3
+ch08	059	ch-system-ninja	ninja-1.13.2.tar.gz	8.20 Ninja-1.13.2
+ch08	060	ch-system-pkgconf	pkgconf-3.0.5.tar.xz	8.21 Pkgconf-3.0.5
+ch08	061	ch-system-binutils	binutils-2.47.tar.xz	8.22 Binutils-2.47
+ch08	062	ch-system-gmp	gmp-6.3.0.tar.xz	8.23 GMP-6.3.0
+ch08	063	ch-system-mpfr	mpfr-4.2.2.tar.xz	8.24 MPFR-4.2.2
+ch08	064	ch-system-mpc	mpc-1.4.1.tar.xz	8.25 MPC-1.4.1
+ch08	065	ch-system-attr	attr-2.6.0.tar.gz	8.26 Attr-2.6.0
+ch08	066	ch-system-acl	acl-2.4.0.tar.xz	8.27 Acl-2.4.0
+ch08	067	ch-system-libcap	libcap-2.78.tar.xz	8.28 Libcap-2.78
+ch08	068	ch-system-libxcrypt	libxcrypt-4.5.2.tar.xz	8.29 Libxcrypt-4.5.2
+ch08	069	ch-system-shadow	shadow-4.20.2.tar.xz	8.30 Shadow-4.20.2
+ch08	070	ch-system-gawk	gawk-5.4.1.tar.xz	8.31 Gawk-5.4.1
+ch08	071	ch-system-gcc	gcc-16.2.0.tar.xz	8.32 GCC-16.2.0
+ch08	072	ch-system-ncurses	ncurses-6.6.tar.gz	8.33 Ncurses-6.6
+ch08	073	ch-system-sed	sed-4.10.tar.xz	8.34 Sed-4.10
+ch08	074	ch-system-psmisc	psmisc-23.7.tar.xz	8.35 Psmisc-23.7
+ch08	075	ch-system-gettext	gettext-1.0.tar.xz	8.36 Gettext-1.0
+ch08	076	ch-system-bison	bison-3.8.2.tar.xz	8.37 Bison-3.8.2
+ch08	077	ch-system-grep	grep-3.12.tar.xz	8.38 Grep-3.12
+ch08	078	ch-system-bash	bash-5.3.tar.gz	8.39 Bash-5.3
+ch08	079	ch-system-libtool	libtool-2.6.2.tar.xz	8.40 Libtool-2.6.2
+ch08	080	ch-system-gdbm	gdbm-1.26.tar.gz	8.41 GDBM-1.26
+ch08	081	ch-system-gperf	gperf-3.3.tar.gz	8.42 Gperf-3.3
+ch08	082	ch-system-expat	expat-2.8.3.tar.xz	8.43 Expat-2.8.3
+ch08	083	ch-system-inetutils	inetutils-2.8.tar.gz	8.44 Inetutils-2.8
+ch08	084	ch-system-less	less-704.tar.gz	8.45 Less-704
+ch08	085	ch-system-perl	perl-5.44.0.tar.xz	8.46 Perl-5.44.0
+ch08	086	ch-system-autoconf	autoconf-2.73.tar.xz	8.47 Autoconf-2.73
+ch08	087	ch-system-automake	automake-1.18.1.tar.xz	8.48 Automake-1.18.1
+ch08	088	ch-system-openssl	openssl-4.0.1.tar.gz	8.49 OpenSSL-4.0.1
+ch08	089	ch-system-libelf	elfutils-0.195.tar.bz2	8.50 Libelf from Elfutils-0.195
+ch08	090	ch-system-libffi	libffi-3.8.0.tar.gz	8.51 Libffi-3.8.0
+ch08	091	ch-system-sqlite	sqlite-autoconf-3530400.tar.gz	8.52 Sqlite-3530400
+ch08	092	ch-system-mpdecimal	mpdecimal-4.0.1.tar.gz	8.53 mpdecimal-4.0.1
+ch08	093	ch-system-Python	Python-3.14.7.tar.xz	8.54 Python-3.14.7
+ch08	094	ch-system-flit-core	flit_core-4.0.2.tar.gz	8.55 Flit-Core-4.0.2
+ch08	095	ch-system-packaging	packaging-26.3.tar.gz	8.56 Packaging-26.3
+ch08	096	ch-system-wheel	wheel-0.48.0.tar.gz	8.57 Wheel-0.48.0
+ch08	097	ch-system-setuptools	setuptools-84.0.0.tar.gz	8.58 Setuptools-84.0.0
+ch08	098	ch-system-meson	meson-1.12.0.tar.gz	8.59 Meson-1.12.0
+ch08	099	ch-system-kmod	kmod-34.2.tar.xz	8.60 Kmod-34.2
+ch08	100	ch-system-coreutils	coreutils-9.11.tar.xz	8.61 Coreutils-9.11
+ch08	101	ch-system-diffutils	diffutils-3.12.tar.xz	8.62 Diffutils-3.12
+ch08	102	ch-system-findutils	findutils-4.11.0.tar.xz	8.63 Findutils-4.11.0
+ch08	103	ch-system-groff	groff-1.24.1.tar.gz	8.64 Groff-1.24.1
+ch08	104	ch-system-grub	grub-2.14.tar.xz	8.65 GRUB-2.14
+ch08	105	ch-system-gzip	gzip-1.14.tar.xz	8.66 Gzip-1.14
+ch08	106	ch-system-iproute2	iproute2-7.1.0.tar.xz	8.67 IPRoute2-7.1.0
+ch08	107	ch-system-kbd	kbd-2.10.0.tar.xz	8.68 Kbd-2.10.0
+ch08	108	ch-system-libpipeline	libpipeline-1.5.8.tar.gz	8.69 Libpipeline-1.5.8
+ch08	109	ch-system-make	make-4.4.1.tar.gz	8.70 Make-4.4.1
+ch08	110	ch-system-patch	patch-2.8.tar.xz	8.71 Patch-2.8
+ch08	111	ch-system-tar	tar-1.35.tar.xz	8.72 Tar-1.35
+ch08	112	ch-system-texinfo	texinfo-7.3.tar.xz	8.73 Texinfo-7.3
+ch08	113	ch-system-vim	vim-9.2.1025.tar.gz	8.74 Vim-9.2.1025
+ch08	114	ch-system-markupsafe	markupsafe-3.0.3.tar.gz	8.75 MarkupSafe-3.0.3
+ch08	115	ch-system-jinja2	jinja2-3.1.6.tar.gz	8.76 Jinja2-3.1.6
+ch08	116	ch-system-systemd	systemd-261.2.tar.gz	8.77 Systemd-261.2
+ch08	117	ch-system-dbus	dbus-1.16.2.tar.xz	8.78 D-Bus-1.16.2
+ch08	118	ch-system-man-db	man-db-2.13.1.tar.xz	8.79 Man-DB-2.13.1
+ch08	119	ch-system-procps	procps-ng-4.0.7.tar.xz	8.80 Procps-ng-4.0.7
+ch08	120	ch-system-util-linux	util-linux-2.42.2.tar.xz	8.81 Util-linux-2.42.2
+ch08	121	ch-system-e2fsprogs	e2fsprogs-1.47.4.tar.gz	8.82 E2fsprogs-1.47.4
+ch08	123	ch-system-stripping	-	8.84 Stripping
+ch08	124	ch-system-cleanup	-	8.85 Cleaning Up
