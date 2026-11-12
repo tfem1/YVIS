@@ -105,12 +105,18 @@ impl LocalDb {
         Ok(out)
     }
 
-    pub fn write(&self, inst: &Installed, files: &[FileRec]) -> Result<()> {
-        let dir = self.pkgdir(&inst.info.name)?;
-        let tmp = self.dir.join(format!(".{}.new", inst.info.name));
-        let old = self.dir.join(format!(".{}.old", inst.info.name));
-        let _ = fs::remove_dir_all(&tmp);
-        fs::create_dir_all(&tmp)?;
+    fn staged(&self) -> PathBuf {
+        self.dir.join(".staged")
+    }
+
+    /// Prepare the new database entry of a package without making it visible.
+    /// `apply_staged` publishes every staged change; `discard_staged` drops them.
+    pub fn stage(&self, inst: &Installed, files: &[FileRec]) -> Result<()> {
+        let dir = self
+            .staged()
+            .join(self.pkgdir(&inst.info.name)?.file_name().unwrap());
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir)?;
         let mut info = inst.info.to_text();
         info.push_str(&format!(
             "reason = {}\ninstalldate = {}\n",
@@ -121,7 +127,7 @@ impl LocalDb {
             },
             inst.installdate
         ));
-        util::write_atomic(&tmp.join("info"), info.as_bytes())?;
+        util::write_atomic(&dir.join("info"), info.as_bytes())?;
         let mut ft = String::new();
         for f in files {
             ft.push_str(&format!(
@@ -129,14 +135,51 @@ impl LocalDb {
                 f.kind, f.mode, f.data, f.path
             ));
         }
-        util::write_atomic(&tmp.join("files"), ft.as_bytes())?;
-        let _ = fs::remove_dir_all(&old);
-        if dir.exists() {
-            fs::rename(&dir, &old)?;
-        }
-        fs::rename(&tmp, &dir)?;
-        let _ = fs::remove_dir_all(&old);
+        util::write_atomic(&dir.join("files"), ft.as_bytes())?;
         Ok(())
+    }
+
+    /// Stage the removal of a package from the database.
+    pub fn stage_remove(&self, name: &str) -> Result<()> {
+        self.pkgdir(name)?;
+        util::write_atomic(&self.staged().join(format!("{name}.remove")), b"")
+    }
+
+    /// Publish staged changes. Idempotent, so `yone recover` can finish a
+    /// transaction that crashed half-way through this function.
+    pub fn apply_staged(&self) -> Result<()> {
+        let st = self.staged();
+        let mut names: Vec<String> = match fs::read_dir(&st) {
+            Ok(rd) => rd
+                .filter_map(|e| e.ok())
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .collect(),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(e) => return Err(e.into()),
+        };
+        names.sort();
+        for n in names {
+            if let Some(pkg) = n.strip_suffix(".remove") {
+                util::ignore_missing(fs::remove_dir_all(self.pkgdir(pkg)?))?;
+                fs::remove_file(st.join(&n))?;
+            } else {
+                let dest = self.pkgdir(&n)?;
+                util::ignore_missing(fs::remove_dir_all(&dest))?;
+                fs::rename(st.join(&n), &dest).ctx(|| format!("publish {}", dest.display()))?;
+            }
+        }
+        fs::remove_dir(&st)?;
+        Ok(())
+    }
+
+    pub fn discard_staged(&self) -> Result<()> {
+        util::ignore_missing(fs::remove_dir_all(self.staged()))?;
+        Ok(())
+    }
+
+    pub fn write(&self, inst: &Installed, files: &[FileRec]) -> Result<()> {
+        self.stage(inst, files)?;
+        self.apply_staged()
     }
 
     pub fn set_reason(&self, name: &str, explicit: bool) -> Result<()> {
@@ -146,12 +189,6 @@ impl LocalDb {
         inst.explicit = explicit;
         let files = self.files(name)?;
         self.write(&inst, &files)
-    }
-
-    pub fn remove(&self, name: &str) -> Result<()> {
-        let dir = self.pkgdir(name)?;
-        util::ignore_missing(fs::remove_dir_all(&dir))?;
-        Ok(())
     }
 
     /// path -> owning package, for files and symlinks (directories may be shared).
@@ -165,18 +202,5 @@ impl LocalDb {
             }
         }
         Ok(m)
-    }
-
-    /// Directories referenced by any installed package.
-    pub fn owned_dirs(&self) -> Result<std::collections::HashSet<String>> {
-        let mut s = std::collections::HashSet::new();
-        for i in self.list()? {
-            for f in self.files(&i.info.name)? {
-                if f.kind == 'd' {
-                    s.insert(f.path);
-                }
-            }
-        }
-        Ok(s)
     }
 }

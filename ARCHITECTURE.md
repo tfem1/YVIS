@@ -58,7 +58,8 @@ proprietary driver.
 /var/lib/yone/sync/          verified repository indexes (+ .sig)
 /var/lib/yone/local/<pkg>/   info (metadata + install reason), files (type, mode, sha256, path)
 /var/lib/yone/journal        present only during a transaction
-/var/lib/yone/db.lck         lock file
+/var/lib/yone/local/.staged/ database changes waiting for the commit point
+/var/lib/yone/db.lck         flock(2) lock (released by the kernel if yone dies)
 /var/cache/yone/pkg/         downloaded packages (offline installs reuse them)
 ```
 
@@ -73,6 +74,7 @@ to `/`. Ownership is always root:root.
 
 ```
 trusted key (/etc/yone/keys) ──verifies──▶ <repo>.index.sig
+<repo>.index header `generated` ──must not go back in time──▶ previously trusted index
 <repo>.index (signed) ──contains sha256 + csize──▶ every package of the repo
 package .YONEINFO name/version ──must equal──▶ index entry
 ```
@@ -98,9 +100,17 @@ their own `.sig` unless `--allow-unsigned` is given.
    one is renamed into place. Parent directories are canonicalised and must stay
    inside the root, which blocks symlink-escape tricks;
 6. on any error the journal is replayed backwards and the filesystem returns to
-   its exact prior state; after a crash, `yone recover` does the same;
-7. on success: update the database, delete files dropped by the new version,
-   delete `.yone-old` backups, run triggers (`ldconfig`).
+   its exact prior state;
+7. commit point: the new database entries are staged in `local/.staged`, files
+   and directories the new versions dropped are journaled (`S`), the
+   filesystem is flushed (`syncfs`) and `C` is written to the journal;
+8. after the commit point: publish the staged database, delete `.yone-old`
+   backups and the dropped files, run triggers (`ldconfig`).
+
+After a crash, `yone recover` reads the journal: without `C` it rolls back
+(step 6), with `C` it rolls forward (step 8). Both are idempotent, so files
+and database always agree whenever the machine died. The e2e suite kills
+yone on both sides of the commit point (`YONE_TEST_CRASH`, debug builds).
 
 Configuration files listed in `backup` are never overwritten when the
 administrator changed them: the new version lands as `<file>.yonenew`; on
@@ -131,11 +141,11 @@ shipped next to the recipe). Scripts run with `bash -eo pipefail` and get
 ### 3.6 Known limitations (v0.1)
 
 - No package-provided install scripts yet; only built-in triggers.
-- The journal is flushed per entry and fsynced before commit, but individual
-  file data is not fsynced, so a power cut mid-transaction can leave a file
-  with partial content that `yone recover` removes; it cannot invent the lost
-  original if the rename had already happened. Planned: fsync data before the
-  rename for files under `/usr/lib` and `/etc`.
+- File data is flushed once per transaction (`syncfs` before the commit
+  point), not per file: a power cut *before* the commit point is rolled back,
+  so a half-written new file is never kept, but an original renamed aside
+  shortly before the cut may itself not have reached the disk yet on
+  filesystems without rename ordering guarantees.
 - Network downloads depend on the system `curl`.
 - Builds run as the invoking user without isolation; a sandboxed build
   (namespaces/chroot) is planned before public repositories open.

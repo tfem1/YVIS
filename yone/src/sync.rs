@@ -3,7 +3,7 @@
 use crate::config::{Config, SigLevel};
 use crate::download::{fetch_all, Job};
 use crate::error::{Context, Result};
-use crate::pkginfo::{parse_index, IndexEntry};
+use crate::pkginfo::{index_generated, parse_index, IndexEntry};
 use crate::ui::Ui;
 use crate::version::Dep;
 use crate::{bail, sign, util};
@@ -110,6 +110,25 @@ pub fn update(cfg: &Config, ui: &Ui) -> Result<()> {
         let n = parse_index(&text, &r.name)
             .ctx(|| format!("repository '{}'", r.name))?
             .len();
+        // Refuse to go back in time: a mirror replaying an old (validly
+        // signed) index could otherwise hide security updates.
+        if checked.is_some() {
+            let trusted = syncdir.join(format!("{}.index", r.name));
+            let have = fs::read_to_string(&trusted)
+                .map(|t| index_generated(&t))
+                .unwrap_or(0);
+            let got = index_generated(&text);
+            if got < have {
+                let _ = fs::remove_dir_all(&stage);
+                bail!(
+                    "repository '{}': the server sent an index older than the one already \
+                     trusted (generated {} < {}); refusing it (stale mirror or replay attack)",
+                    r.name,
+                    got,
+                    have
+                );
+            }
+        }
         match checked {
             Some(k) => ui.info(&format!(
                 "{:<12} {} packages, signature ok ({})",

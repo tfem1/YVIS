@@ -147,12 +147,13 @@ fn valid_filename(s: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || b"@._+-:~".contains(&b))
 }
 
-/// Index: records separated by blank lines.
+/// Index: an optional header record (`generated = <unix time>`), then
+/// package records, all separated by blank lines.
 pub fn parse_index(text: &str, repo: &str) -> Result<Vec<IndexEntry>> {
     let mut out = vec![];
     for block in text.split("\n\n") {
         let kv = parse_kv(block)?;
-        if kv.is_empty() {
+        if kv.is_empty() || is_header(&kv) {
             continue;
         }
         let info = PkgInfo::from_kv(&kv)?;
@@ -181,8 +182,22 @@ pub fn parse_index(text: &str, repo: &str) -> Result<Vec<IndexEntry>> {
     Ok(out)
 }
 
-pub fn index_text(entries: &[IndexEntry]) -> String {
-    let mut s = String::from("# Yone repository index v1\n\n");
+fn is_header(kv: &[(String, String)]) -> bool {
+    kv.iter().all(|(k, _)| k == "generated")
+}
+
+/// When the repository index was generated (0 for indexes without a header).
+/// The value is covered by the index signature, so a mirror cannot fake it.
+pub fn index_generated(text: &str) -> u64 {
+    text.split("\n\n")
+        .filter_map(|b| parse_kv(b).ok())
+        .find(|kv| !kv.is_empty() && is_header(kv))
+        .and_then(|kv| kv[0].1.parse().ok())
+        .unwrap_or(0)
+}
+
+pub fn index_text(entries: &[IndexEntry], generated: u64) -> String {
+    let mut s = format!("# Yone repository index v1\ngenerated = {generated}\n\n");
     for e in entries {
         s.push_str(&e.info.to_text());
         s.push_str(&format!(
@@ -215,7 +230,9 @@ mod tests {
             sha256: "a".repeat(64),
             repo: "core".into(),
         };
-        let txt = index_text(&[e.clone(), e]);
+        let txt = index_text(&[e.clone(), e], 1_700_000_000);
+        assert_eq!(index_generated(&txt), 1_700_000_000);
+        assert_eq!(index_generated("name = a\nversion = 1-1\n"), 0);
         let back = parse_index(&txt, "core").unwrap();
         assert_eq!(back.len(), 2);
         assert_eq!(back[0].info, info);

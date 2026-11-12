@@ -392,7 +392,14 @@ pub fn repo_index(dir: &Path, name: &str, key: Option<&Path>, ui: &Ui) -> Result
     }
     entries.sort_by(|a, b| a.info.name.cmp(&b.info.name));
     let idx = dir.join(format!("{name}.index"));
-    util::write_atomic(&idx, crate::pkginfo::index_text(&entries).as_bytes())?;
+    let generated = std::env::var("SOURCE_DATE_EPOCH")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or_else(util::now);
+    util::write_atomic(
+        &idx,
+        crate::pkginfo::index_text(&entries, generated).as_bytes(),
+    )?;
     if let Some(k) = key {
         sign::sign(&idx, k)?;
     }

@@ -27,7 +27,16 @@ enum St {
     Failed(String),
 }
 
-fn fetch_one(urls: &[String], part: &PathBuf) -> std::result::Result<(), String> {
+/// Upper bound for files of unknown size (indexes, signatures): a hostile
+/// mirror must not be able to fill the disk.
+const UNKNOWN_SIZE_CAP: u64 = 256 << 20;
+
+fn fetch_one(
+    urls: &[String],
+    part: &PathBuf,
+    size: Option<u64>,
+) -> std::result::Result<(), String> {
+    let cap = size.unwrap_or(UNKNOWN_SIZE_CAP).max(1).to_string();
     let mut last = String::from("no mirror configured");
     for url in urls {
         let local = url.strip_prefix("file://").or_else(|| {
@@ -53,6 +62,8 @@ fn fetch_one(urls: &[String], part: &PathBuf) -> std::result::Result<(), String>
                 "2",
                 "--connect-timeout",
                 "20",
+                "--max-filesize",
+                &cap,
                 "-o",
             ])
             .arg(part)
@@ -94,7 +105,7 @@ pub fn fetch_all(jobs: Vec<Job>, parallel: usize, ui: &Ui) -> Result<()> {
             }
             let part = util::suffixed(&job.dest, ".part");
             states.lock().unwrap()[i] = St::Running(part.clone());
-            let st = match fetch_one(&job.urls, &part)
+            let st = match fetch_one(&job.urls, &part, job.size)
                 .and_then(|_| fs::rename(&part, &job.dest).map_err(|e| e.to_string()))
             {
                 Ok(()) => St::Done(fs::metadata(&job.dest).map(|m| m.len()).unwrap_or(0)),

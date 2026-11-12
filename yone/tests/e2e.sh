@@ -5,6 +5,7 @@
 # verification / tampering / path-escape defences.
 set -euo pipefail
 
+SELF=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")
 YONE=${YONE:-$(cd "$(dirname "$0")/.." && pwd)/target/debug/yone}
 COMP=${YONE_TEST_COMPRESSION:-xz}
 T=$(mktemp -d)
@@ -120,12 +121,13 @@ echo "== sync, search, install"
 grep -q "$(sha "$ROOT/usr/bin/foo")" "$ROOT/var/lib/yone/local/foo/files" && ok "recorded SHA-256 matches coreutils sha256sum"
 "${Y[@]}" verify >/dev/null && ok "verify: clean system"
 "${Y[@]}" info foo | grep -q "explicitly installed" && ok "info"
-[ ! -e "$ROOT/var/lib/yone/journal" ] && [ ! -e "$ROOT/var/lib/yone/db.lck" ] && ok "no journal or lock left behind"
+[ ! -e "$ROOT/var/lib/yone/journal" ] && ok "no journal left behind"
 
 echo "== integrity and conflicts"
 echo tampered >> "$ROOT/usr/lib/libfoo.so.1"
 fails "${Y[@]}" verify; grep -q "checksum mismatch" last.log && ok "verify detects a modified file"
 "${Y[@]}" install --reinstall libfoo >/dev/null && "${Y[@]}" verify >/dev/null && ok "reinstall repairs it"
+"${Y[@]}" list --deps | grep -q libfoo && ok "reinstall keeps the install reason (still a dependency)"
 fails "${Y[@]}" install bar; grep -q "conflicts with" last.log && ok "declared package conflict refused"
 fails "${Y[@]}" install clash; grep -q "owned by foo" last.log && ok "file conflict with another package refused"
 mkdir -p "$ROOT/usr/share" && echo mine > "$ROOT/usr/share/stray"
@@ -154,6 +156,12 @@ grep -q "admin" "$ROOT/etc/foo.conf" && grep -q "new=1" "$ROOT/etc/foo.conf.yone
 [ ! -e "$ROOT/usr/share/foo/legacy.txt" ] && ok "files dropped by the new version are removed"
 "${Y[@]}" verify >/dev/null && ok "verify after upgrade"
 "${Y[@]}" upgrade 2>&1 | grep -q "up to date" && ok "second upgrade is a no-op"
+rm "$ROOT/etc/foo.conf.yonenew"
+foo_recipe 1.2 'setting=1\nnew=2\n'
+build r/foo; rm repo/foo-1.1-1-x86_64.yon*; publish
+"${Y[@]}" update >/dev/null && "${Y[@]}" upgrade >/dev/null 2>&1
+grep -q "admin" "$ROOT/etc/foo.conf" && grep -q "new=2" "$ROOT/etc/foo.conf.yonenew" \
+  && ok "admin changes survive a second upgrade" || die "second upgrade overwrote the modified config"
 
 echo "== removal"
 fails "${Y[@]}" remove libfoo; grep -q "foo requires" last.log && ok "removing a needed dependency is refused"
@@ -171,6 +179,10 @@ grep -q "The foo tool" "$ROOT/var/lib/yone/sync/core.index" && ok "previous trus
 cp repo/core.index.bak repo/core.index
 "$YONE" repo-index "$T/repo" --name core --sign keys/rogue.key --color never >/dev/null
 fails "${Y[@]}" update && ok "index signed by an untrusted key rejected"
+SOURCE_DATE_EPOCH=1 publish; cp repo/core.index old.index; cp repo/core.index.sig old.index.sig
+publish; "${Y[@]}" update >/dev/null
+cp old.index repo/core.index; cp old.index.sig repo/core.index.sig
+fails "${Y[@]}" update; grep -q "older than the one already" last.log && ok "replayed older signed index refused"
 publish; "${Y[@]}" update >/dev/null
 
 "${Y[@]}" clean --all >/dev/null
@@ -222,11 +234,34 @@ mv repo repo.offline
 fails "${Y[@]}" install --offline multi; grep -q "not in the cache" last.log && ok "offline mode never touches the network"
 mv repo.offline repo
 
+echo "== crash recovery (power cut simulated with an abrupt exit)"
+leftovers() { find "$ROOT" -name '*.yone-old' -o -name '*.yone-new' | grep -q .; }
+fails env YONE_TEST_CRASH=staged "${Y[@]}" install multi
+fails "${Y[@]}" install --reinstall stray; grep -q "yone recover" last.log && ok "a crashed transaction blocks new ones until recovered"
+"${Y[@]}" recover 2>&1 | grep -q "rolled back" && ok "crash before the commit point: recover rolls back"
+[ -z "$("${Y[@]}" list | grep '^multi' || true)" ] && [ ! -e "$ROOT/usr/share/multi" ] && ! leftovers \
+  && "${Y[@]}" verify >/dev/null && ok "  ...nothing of multi left, database and files agree"
+fails env YONE_TEST_CRASH=committed "${Y[@]}" install multi
+"${Y[@]}" recover 2>&1 | grep -q "completed" && ok "crash after the commit point: recover rolls forward"
+"${Y[@]}" list | grep -q '^multi' && [ -e "$ROOT/usr/share/multi/f40" ] && ! leftovers \
+  && "${Y[@]}" verify >/dev/null && ok "  ...multi fully installed, database and files agree"
+fails env YONE_TEST_CRASH=committed "${Y[@]}" remove multi
+"${Y[@]}" recover >/dev/null
+[ -z "$("${Y[@]}" list | grep '^multi' || true)" ] && [ ! -e "$ROOT/usr/share/multi" ] && ! leftovers \
+  && ok "crash after committing a removal: recover completes it"
+"${Y[@]}" recover 2>&1 | grep -q "no interrupted" && ok "recover on a clean system is a no-op"
+
 echo "== locking"
-touch "$ROOT/var/lib/yone/db.lck"
+exec 9>"$ROOT/var/lib/yone/db.lck"; flock -n 9
 fails "${Y[@]}" install multi; grep -q "locked" last.log && ok "concurrent transactions blocked by the lock"
-rm "$ROOT/var/lib/yone/db.lck"
+exec 9>&-
+"${Y[@]}" install multi >/dev/null && ok "a leftover lock file (crashed yone) does not block"
+"${Y[@]}" remove multi >/dev/null
 
 "${Y[@]}" verify >/dev/null && ok "final verify"
+# "cond && ok msg" silently skips a failed check under set -e: make sure
+# every check written in this file actually ran and passed.
+want=$(grep -c ' ok "' "$SELF")
+[ "$n" -eq "$want" ] || die "only $n of $want checks passed (a check failed silently)"
 echo
 echo "all $n checks passed ($COMP)"

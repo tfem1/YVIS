@@ -256,11 +256,14 @@ fn run() -> Result<i32> {
         "recover" => {
             let c = cfg()?;
             let _lock = transaction::Lock::acquire(&c)?;
-            let n = transaction::rollback(&c)?;
-            if n == 0 {
-                ui.success("no interrupted transaction");
-            } else {
-                ui.success(&format!("rolled back {n} change(s)"));
+            match transaction::recover(&c)? {
+                transaction::Recovery::Clean => ui.success("no interrupted transaction"),
+                transaction::Recovery::RolledBack(n) => ui.success(&format!(
+                    "interrupted before its commit point: rolled back {n} change(s)"
+                )),
+                transaction::Recovery::Completed(n) => ui.success(&format!(
+                    "interrupted after its commit point: completed ({n} change(s))"
+                )),
             }
         }
         "build" => {

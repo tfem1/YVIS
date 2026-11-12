@@ -7,8 +7,13 @@
 //!   B <path>   existing `<path>` moved aside to `<path>.yone-old`
 //!   N <path>   `<path>` now holds new content
 //!   D <path>   directory created
-//! Rollback replays the journal backwards; `yone recover` does the same
-//! after a crash or power loss.
+//!   S <path>   file or directory left over by an upgrade, deleted after commit
+//!   C          commit point: every new file is in place and durable and the
+//!              new database entries are staged (`local/.staged`)
+//! Before `C`, recovery rolls back (replays the journal backwards and drops
+//! the staged database). After `C`, it rolls *forward*: publishes the staged
+//! database, deletes the moved-aside originals and the `S` paths. Either way
+//! files and database always agree, whatever moment the machine died.
 
 use crate::archive;
 use crate::config::{Config, SigLevel};
@@ -39,31 +44,37 @@ pub struct Opts {
 
 // ------------------------------------------------------------------ lock
 
-pub struct Lock(PathBuf);
+/// Exclusive database lock held with flock(2): the kernel releases it when
+/// the process exits, so a crash or `kill -9` never leaves a stale lock.
+pub struct Lock(#[allow(dead_code)] File);
+
+extern "C" {
+    fn flock(fd: i32, operation: i32) -> i32;
+}
+const LOCK_EX: i32 = 2;
+const LOCK_NB: i32 = 4;
 
 impl Lock {
     pub fn acquire(cfg: &Config) -> Result<Lock> {
+        use std::os::unix::io::AsRawFd;
         fs::create_dir_all(&cfg.dbpath).ctx(|| format!("create {}", cfg.dbpath.display()))?;
         let p = cfg.dbpath.join("db.lck");
-        match OpenOptions::new().write(true).create_new(true).open(&p) {
-            Ok(mut f) => {
-                let _ = writeln!(f, "{}", std::process::id());
-                Ok(Lock(p))
+        let f = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(&p)
+            .ctx(|| format!("open {}", p.display()))?;
+        // SAFETY: flock only reads the descriptor, which `f` keeps open.
+        if unsafe { flock(f.as_raw_fd(), LOCK_EX | LOCK_NB) } != 0 {
+            let e = std::io::Error::last_os_error();
+            if e.raw_os_error() == Some(11) {
+                // EWOULDBLOCK
+                bail!("database is locked: another yone is running");
             }
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
-                bail!(
-                    "database is locked ({}). If no other yone is running, remove that file.",
-                    p.display()
-                )
-            }
-            Err(e) => Err(e.into()),
+            bail!("cannot lock {}: {}", p.display(), e);
         }
-    }
-}
-
-impl Drop for Lock {
-    fn drop(&mut self) {
-        let _ = fs::remove_file(&self.0);
+        Ok(Lock(f))
     }
 }
 
@@ -71,8 +82,6 @@ impl Drop for Lock {
 
 struct Journal {
     f: BufWriter<File>,
-    path: PathBuf,
-    moved_aside: Vec<PathBuf>,
 }
 
 impl Journal {
@@ -81,20 +90,14 @@ impl Journal {
         if path.exists() {
             bail!("an interrupted transaction was found; run 'yone recover' first");
         }
+        LocalDb::open(&cfg.dbpath).discard_staged()?;
         let f = BufWriter::new(File::create(&path)?);
-        Ok(Journal {
-            f,
-            path,
-            moved_aside: vec![],
-        })
+        Ok(Journal { f })
     }
 
     fn rec(&mut self, tag: char, p: &Path) -> Result<()> {
         writeln!(self.f, "{} {}", tag, p.display())?;
         self.f.flush()?;
-        if tag == 'B' {
-            self.moved_aside.push(p.to_path_buf());
-        }
         Ok(())
     }
 
@@ -104,27 +107,93 @@ impl Journal {
         Ok(())
     }
 
-    /// Success: discard the moved-aside originals and the journal.
-    fn commit(self) -> Result<()> {
-        for p in &self.moved_aside {
-            let old = util::suffixed(p, ".yone-old");
-            if fs::symlink_metadata(&old)
-                .map(|m| m.is_dir())
-                .unwrap_or(false)
-            {
-                let _ = fs::remove_dir(&old);
-            } else {
-                util::ignore_missing(fs::remove_file(&old))?;
-            }
-        }
-        drop(self.f);
-        fs::remove_file(&self.path)?;
+    /// Point of no return. Flushes every filesystem write made so far, then
+    /// durably records `C`.
+    fn commit_point(&mut self, root: &Path) -> Result<()> {
+        sync_fs(root);
+        self.f.write_all(b"C\n")?;
+        self.sync()?;
+        crash_point("committed");
         Ok(())
     }
 }
 
-/// Undo everything recorded in the journal. Used on failure and by `yone recover`.
-pub fn rollback(cfg: &Config) -> Result<usize> {
+extern "C" {
+    fn syncfs(fd: i32) -> i32;
+}
+
+fn sync_fs(root: &Path) {
+    use std::os::unix::io::AsRawFd;
+    if let Ok(d) = File::open(root) {
+        // SAFETY: syncfs only reads the descriptor, kept open by `d`.
+        unsafe { syncfs(d.as_raw_fd()) };
+    }
+}
+
+/// Test hook (debug builds only): die abruptly at a named point, as a power
+/// cut would, to exercise `yone recover`.
+fn crash_point(_at: &str) {
+    #[cfg(debug_assertions)]
+    if std::env::var("YONE_TEST_CRASH").as_deref() == Ok(_at) {
+        std::process::exit(137);
+    }
+}
+
+/// Finish a transaction whose journal holds the commit point: publish the
+/// staged database, delete what was moved aside or left over, drop the journal.
+fn roll_forward(cfg: &Config) -> Result<usize> {
+    let path = cfg.dbpath.join("journal");
+    let text = fs::read_to_string(&path)?;
+    LocalDb::open(&cfg.dbpath).apply_staged()?;
+    let mut n = 0;
+    for line in text.lines() {
+        let Some((tag, p)) = line.split_once(' ') else {
+            continue;
+        };
+        let p = PathBuf::from(p);
+        let victim = match tag {
+            "B" => util::suffixed(&p, ".yone-old"),
+            "S" => p,
+            _ => continue,
+        };
+        match fs::symlink_metadata(&victim) {
+            Ok(m) if m.is_dir() => {
+                let _ = fs::remove_dir(&victim);
+            }
+            Ok(_) => util::ignore_missing(fs::remove_file(&victim))?,
+            Err(_) => {}
+        }
+        n += 1;
+    }
+    fs::remove_file(&path)?;
+    Ok(n)
+}
+
+pub enum Recovery {
+    Clean,
+    RolledBack(usize),
+    Completed(usize),
+}
+
+/// `yone recover`: roll back before the commit point, forward after it.
+pub fn recover(cfg: &Config) -> Result<Recovery> {
+    let path = cfg.dbpath.join("journal");
+    let text = match fs::read_to_string(&path) {
+        Ok(t) => t,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            LocalDb::open(&cfg.dbpath).discard_staged()?;
+            return Ok(Recovery::Clean);
+        }
+        Err(e) => return Err(e.into()),
+    };
+    if text.lines().any(|l| l == "C") {
+        return Ok(Recovery::Completed(roll_forward(cfg)?));
+    }
+    Ok(Recovery::RolledBack(rollback(cfg)?))
+}
+
+/// Undo everything recorded in the journal (only valid before the commit point).
+fn rollback(cfg: &Config) -> Result<usize> {
     let path = cfg.dbpath.join("journal");
     let text = match fs::read_to_string(&path) {
         Ok(t) => t,
@@ -157,6 +226,7 @@ pub fn rollback(cfg: &Config) -> Result<usize> {
         }
         n += 1;
     }
+    LocalDb::open(&cfg.dbpath).discard_staged()?;
     fs::remove_file(&path)?;
     Ok(n)
 }
@@ -346,7 +416,12 @@ pub fn install(cfg: &Config, ui: &Ui, targets: &[String], opts: &Opts) -> Result
         let e = sync
             .find(t)
             .ok_or_else(|| crate::err!("target not found: {t}"))?;
+        let mut explicit = !opts.asdeps;
         if let Some(i) = installed.iter().find(|i| i.info.name == e.info.name) {
+            if i.info.version == e.info.version {
+                // a reinstall repairs files; it does not change why the package is here
+                explicit = i.explicit && !opts.asdeps;
+            }
             if i.info.version == e.info.version && !opts.reinstall {
                 ui.info(&format!(
                     "{} {} is up to date -- skipping",
@@ -361,7 +436,7 @@ pub fn install(cfg: &Config, ui: &Ui, targets: &[String], opts: &Opts) -> Result
         items.push(Item {
             info: e.info.clone(),
             source: Source::Repo(e.clone()),
-            explicit: !opts.asdeps,
+            explicit,
         });
     }
     for n in mark_explicit {
@@ -511,6 +586,14 @@ fn run_plan(
     let mut conflicts = vec![];
     for (it, f) in plan.iter().zip(&files) {
         let l = archive::list(f)?;
+        if l.info.arch != cfg.arch && l.info.arch != "any" {
+            bail!(
+                "{} is built for {}, this system is {}",
+                l.info.name,
+                l.info.arch,
+                cfg.arch
+            );
+        }
         if l.info.name != it.info.name || l.info.version != it.info.version {
             bail!(
                 "{}: package metadata ({} {}) does not match the index ({} {})",
@@ -614,7 +697,13 @@ fn run_plan(
                 &old_files,
                 &mut fault_budget,
             )?;
-            let explicit = old.as_ref().map(|o| o.explicit).unwrap_or(false) || it.explicit;
+            // reasons only ever widen (dependency -> explicit), except that
+            // an explicit reinstall keeps the existing reason (see install())
+            let explicit = match &old {
+                Some(o) if o.info.version == it.info.version => it.explicit,
+                Some(o) => o.explicit || it.explicit,
+                None => it.explicit,
+            };
             out.push((
                 Installed {
                     info: it.info.clone(),
@@ -639,37 +728,48 @@ fn run_plan(
             return Err(e);
         }
     };
-    journal.sync()?;
-
-    // 5. database + removal of files dropped by upgrades
+    // 5. stage the database, journal the leftovers of upgrades, commit
     let new_paths: HashSet<&str> = done
         .iter()
         .flat_map(|(_, r)| r.iter().map(|f| f.path.as_str()))
         .collect();
-    for (inst, recs) in &done {
+    let mut stale: Vec<String> = vec![];
+    for (inst, _) in &done {
         if installed.iter().any(|i| i.info.name == inst.info.name) {
-            let old = db.files(&inst.info.name)?;
-            let mut stale: Vec<&FileRec> = old
-                .iter()
-                .filter(|f| !new_paths.contains(f.path.as_str()))
-                .collect();
-            stale.sort_by(|a, b| b.path.cmp(&a.path));
-            for f in stale {
-                let p = cfg.root.join(&f.path);
-                if f.kind == 'd' {
-                    let _ = fs::remove_dir(&p);
-                } else if owners
+            for f in db.files(&inst.info.name)? {
+                if new_paths.contains(f.path.as_str()) {
+                    continue;
+                }
+                let mine = owners
                     .get(&f.path)
                     .map(|o| o == &inst.info.name)
-                    .unwrap_or(true)
-                {
-                    let _ = fs::remove_file(&p);
+                    .unwrap_or(true);
+                if f.kind == 'd' || mine {
+                    stale.push(f.path);
                 }
             }
         }
-        db.write(inst, recs)?;
     }
-    journal.commit()?;
+    stale.sort_by(|a, b| b.cmp(a)); // children before their directories
+    stale.dedup();
+    let result: Result<()> = (|| {
+        for (inst, recs) in &done {
+            db.stage(inst, recs)?;
+        }
+        for p in &stale {
+            journal.rec('S', &cfg.root.join(p))?;
+        }
+        crash_point("staged");
+        journal.commit_point(&cfg.root)
+    })();
+    if let Err(e) = result {
+        ui.warn("installation failed — rolling back");
+        drop(journal);
+        rollback(cfg)?;
+        return Err(e);
+    }
+    drop(journal);
+    roll_forward(cfg)?;
     run_triggers(cfg, ui, &done);
     ui.success(&format!("{} package(s) installed", done.len()));
     Ok(())
@@ -788,9 +888,14 @@ fn extract(
                 let tmp = util::suffixed(&target, ".yone-new");
                 j.rec('T', &target)?;
                 let sha = {
-                    let mut w = HashingWriter::new(BufWriter::new(
-                        File::create(&tmp).ctx(|| format!("create {}", tmp.display()))?,
-                    ));
+                    // never write through something already sitting at the temp path
+                    let _ = fs::remove_file(&tmp);
+                    let out = OpenOptions::new()
+                        .write(true)
+                        .create_new(true)
+                        .open(&tmp)
+                        .ctx(|| format!("create {}", tmp.display()))?;
+                    let mut w = HashingWriter::new(BufWriter::new(out));
                     tr.copy_data(&mut w)?;
                     w.flush()?;
                     w.hasher.finalize_hex()
@@ -815,11 +920,12 @@ fn extract(
                     ui.warn(&format!(
                         "/{rel} was modified locally; new version saved as /{rel}.yonenew"
                     ));
-                    let kept = sha256::file_hex(&target)?;
+                    // Record what the *package* shipped, not the admin's file:
+                    // the next upgrade must still see the file as modified.
                     recs.push(FileRec {
                         kind: 'f',
                         mode: e.mode,
-                        data: kept,
+                        data: sha,
                         path: rel,
                     });
                     continue;
@@ -848,6 +954,12 @@ fn extract(
             }
             Kind::Hardlink(t) => {
                 let src = cfg.root.join(util::safe_rel_path(t)?);
+                if let Some(parent) = src.parent() {
+                    let canon = fs::canonicalize(parent).ctx(|| format!("link source {t}"))?;
+                    if !canon.starts_with(root_canon) {
+                        bail!("hard link {rel} -> {t} resolves outside the installation root");
+                    }
+                }
                 let tmp = util::suffixed(&target, ".yone-new");
                 j.rec('T', &target)?;
                 let _ = fs::remove_file(&tmp);
@@ -1048,26 +1160,36 @@ fn remove_set(
         }
         Ok(())
     })();
+    let result = result.and_then(|_| {
+        // directories that no remaining package references go away after commit
+        let mut still: HashSet<String> = HashSet::new();
+        for i in installed.iter().filter(|i| !set.contains(&i.info.name)) {
+            still.extend(
+                db.files(&i.info.name)?
+                    .into_iter()
+                    .filter(|f| f.kind == 'd')
+                    .map(|f| f.path),
+            );
+        }
+        dirs.sort_by(|a, b| b.cmp(a)); // children before their parents
+        dirs.dedup();
+        for d in dirs.iter().filter(|d| !still.contains(*d)) {
+            journal.rec('S', &cfg.root.join(d))?;
+        }
+        for n in &names {
+            db.stage_remove(n)?;
+        }
+        crash_point("staged");
+        journal.commit_point(&cfg.root)
+    });
     if let Err(e) = result {
         ui.warn("removal failed — rolling back");
         drop(journal);
         rollback(cfg)?;
         return Err(e);
     }
-    journal.sync()?;
-    for n in &names {
-        db.remove(n)?;
-    }
-    journal.commit()?;
-    // empty directories no longer referenced by anyone
-    let still: HashSet<String> = db.owned_dirs()?;
-    dirs.sort_by(|a, b| b.cmp(a));
-    dirs.dedup();
-    for d in dirs {
-        if !still.contains(&d) {
-            let _ = fs::remove_dir(cfg.root.join(&d));
-        }
-    }
+    drop(journal);
+    roll_forward(cfg)?;
     ui.success(&format!("{} package(s) removed", names.len()));
     Ok(())
 }

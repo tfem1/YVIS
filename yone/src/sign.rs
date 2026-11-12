@@ -20,13 +20,38 @@ fn statement(file: &Path) -> Result<Vec<u8>> {
     Ok(format!("yone-signature-v1\n{sha}  {name}\n").into_bytes())
 }
 
-fn scratch(tag: &str) -> PathBuf {
-    std::env::temp_dir().join(format!(
-        "yone-{}-{}-{}",
-        tag,
-        std::process::id(),
-        crate::util::now()
-    ))
+/// A private scratch file holding `data`, for OpenSSL (whose one-shot ed25519
+/// mode cannot read stdin before 3.2). The name is random and the file is
+/// created with O_EXCL and mode 0600, so a symlink planted in a shared temp
+/// directory can never redirect a write made as root.
+struct Scratch(PathBuf);
+
+impl Scratch {
+    fn new(tag: &str, data: &[u8]) -> Result<Scratch> {
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut rnd = [0u8; 12];
+        fs::File::open("/dev/urandom")
+            .and_then(|mut f| std::io::Read::read_exact(&mut f, &mut rnd))
+            .ctx(|| "read /dev/urandom")?;
+        let hex: String = rnd.iter().map(|b| format!("{b:02x}")).collect();
+        let p = std::env::temp_dir().join(format!("yone-{tag}-{hex}"));
+        let mut f = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(&p)
+            .ctx(|| format!("create {}", p.display()))?;
+        let s = Scratch(p);
+        f.write_all(data)?;
+        Ok(s)
+    }
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.0);
+    }
 }
 
 fn openssl(args: &[&std::ffi::OsStr]) -> Result<std::process::Output> {
@@ -80,8 +105,7 @@ pub fn keygen(prefix: &Path) -> Result<(PathBuf, PathBuf)> {
 
 /// Sign `file`, writing `<file>.sig`.
 pub fn sign(file: &Path, key: &Path) -> Result<PathBuf> {
-    let stmt = scratch("stmt");
-    fs::write(&stmt, statement(file)?)?;
+    let stmt = Scratch::new("stmt", &statement(file)?)?;
     let sig = crate::util::suffixed(file, ".sig");
     let o = openssl(&[
         "pkeyutl".as_ref(),
@@ -90,12 +114,10 @@ pub fn sign(file: &Path, key: &Path) -> Result<PathBuf> {
         "-inkey".as_ref(),
         key.as_os_str(),
         "-in".as_ref(),
-        stmt.as_os_str(),
+        stmt.0.as_os_str(),
         "-out".as_ref(),
         sig.as_os_str(),
-    ]);
-    let _ = fs::remove_file(&stmt);
-    let o = o?;
+    ])?;
     if !o.status.success() {
         bail!(
             "signing {} failed: {}",
@@ -124,8 +146,7 @@ pub fn verify(file: &Path, sig: &Path, keydir: &Path) -> Result<String> {
     if keys.is_empty() {
         bail!("no trusted keys in {}", keydir.display());
     }
-    let stmt = scratch("verify");
-    fs::write(&stmt, statement(file)?)?;
+    let stmt = Scratch::new("verify", &statement(file)?)?;
     let mut matched = None;
     for k in &keys {
         let o = openssl(&[
@@ -136,7 +157,7 @@ pub fn verify(file: &Path, sig: &Path, keydir: &Path) -> Result<String> {
             "-inkey".as_ref(),
             k.as_os_str(),
             "-in".as_ref(),
-            stmt.as_os_str(),
+            stmt.0.as_os_str(),
             "-sigfile".as_ref(),
             sig.as_os_str(),
         ]);
@@ -147,7 +168,7 @@ pub fn verify(file: &Path, sig: &Path, keydir: &Path) -> Result<String> {
             }
         }
     }
-    let _ = fs::remove_file(&stmt);
+    drop(stmt);
     matched.ok_or_else(|| {
         crate::err!(
             "invalid signature for {} (no trusted key matches)",
