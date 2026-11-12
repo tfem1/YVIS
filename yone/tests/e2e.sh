@@ -227,7 +227,8 @@ PY
 for f in evil/*.yon; do cp "$f" repo/; done
 publish; "${Y[@]}" update >/dev/null
 fails "${Y[@]}" install traversal; grep -q "unsafe path" last.log && ok "path traversal (../) refused"
-fails "${Y[@]}" install symescape; grep -q "outside the installation root" last.log && ok "symlink escape refused and rolled back"
+fails "${Y[@]}" install symescape; grep -q "would be redirected" last.log && grep -q "rolling back" last.log \
+  && ok "a package redirecting its own files through a symlink is refused and rolled back"
 [ -z "$(ls -A "$T/outside")" ] && [ ! -e "$ROOT/usr/escape" ] && [ ! -e "$T/escaped" ] && ok "nothing written outside the root"
 
 echo "== offline and cache"
@@ -239,6 +240,32 @@ mv repo repo.offline
 "${Y[@]}" clean --all >/dev/null
 fails "${Y[@]}" install --offline multi; grep -q "not in the cache" last.log && ok "offline mode never touches the network"
 mv repo.offline repo
+
+echo "== merged /usr (lib -> usr/lib, as on LFS)"
+ln -s usr/lib "${ROOT:?}/lib"
+recipe r/aliasa <<'EOF'
+name = aliasa
+version = 1.0
+@package
+echo A > x; install -Dm644 x "$PKGDIR/usr/lib/libalias.so"
+EOF
+recipe r/aliasb <<'EOF'
+name = aliasb
+version = 1.0
+@package
+mkdir -p "$PKGDIR/lib"; echo B > "$PKGDIR/lib/libalias.so"; echo B > "$PKGDIR/lib/libonly-b.so"
+EOF
+build r/aliasa; build r/aliasb; publish; "${Y[@]}" update >/dev/null
+"${Y[@]}" install aliasa >/dev/null
+fails "${Y[@]}" install --overwrite aliasb
+grep -q "usr/lib/libalias.so: exists in filesystem (owned by aliasa)" last.log \
+  && ok "a file reached through /lib is recognised as another package's, even with --overwrite"
+"${Y[@]}" remove aliasa >/dev/null && "${Y[@]}" install aliasb >/dev/null
+grep -q "	usr/lib/libonly-b.so$" "$ROOT/var/lib/yone/local/aliasb/files" && [ "$(cat "$ROOT/usr/lib/libonly-b.so")" = B ] \
+  && ok "paths through a symlinked directory are recorded under their real location"
+"${Y[@]}" remove aliasb >/dev/null && [ ! -e "$ROOT/usr/lib/libalias.so" ] && [ -L "$ROOT/lib" ] \
+  && ok "removal deletes the real file and keeps the /lib symlink"
+unlink "${ROOT:?}/lib"
 
 echo "== crash recovery (power cut simulated with an abrupt exit)"
 leftovers() { find "$ROOT" -name '*.yone-old' -o -name '*.yone-new' | grep -q .; }

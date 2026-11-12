@@ -7,7 +7,9 @@
 //!   B <path>   existing `<path>` moved aside to `<path>.yone-old`
 //!   N <path>   `<path>` now holds new content
 //!   D <path>   directory created
-//!   S <path>   file or directory left over by an upgrade, deleted after commit
+//!   S <path>   file or symlink left over (upgrade, removal), deleted after commit
+//!   R <path>   directory left over, removed after commit if it is a real,
+//!              empty directory (never a symlink such as /lib -> usr/lib)
 //!   C          commit point: every new file is in place and durable and the
 //!              new database entries are staged (`local/.staged`)
 //! Before `C`, recovery rolls back (replays the journal backwards and drops
@@ -151,15 +153,17 @@ fn roll_forward(cfg: &Config) -> Result<usize> {
             continue;
         };
         let p = PathBuf::from(p);
-        let victim = match tag {
-            "B" => util::suffixed(&p, ".yone-old"),
-            "S" => p,
+        let (victim, dir_only) = match tag {
+            "B" => (util::suffixed(&p, ".yone-old"), false),
+            "S" => (p, false),
+            "R" => (p, true),
             _ => continue,
         };
         match fs::symlink_metadata(&victim) {
             Ok(m) if m.is_dir() => {
                 let _ = fs::remove_dir(&victim);
             }
+            Ok(_) if dir_only => {} // a symlink to a directory: not ours to remove
             Ok(_) => util::ignore_missing(fs::remove_file(&victim))?,
             Err(_) => {}
         }
@@ -604,6 +608,11 @@ fn run_plan(
                 it.info.version
             );
         }
+        let mut l = l;
+        for e in l.entries.iter_mut() {
+            // `lib/x` and `usr/lib/x` are one file when lib -> usr/lib
+            e.path = resolve_entry(&cfg.root, &e.path, &e.kind)?;
+        }
         for e in &l.entries {
             let target = cfg.root.join(&e.path);
             if e.kind == Kind::Dir {
@@ -694,6 +703,7 @@ fn run_plan(
                 &mut dir_ok,
                 f,
                 &it.info,
+                &listings[n].entries,
                 &old_files,
                 &mut fault_budget,
             )?;
@@ -733,7 +743,7 @@ fn run_plan(
         .iter()
         .flat_map(|(_, r)| r.iter().map(|f| f.path.as_str()))
         .collect();
-    let mut stale: Vec<String> = vec![];
+    let mut stale: Vec<(String, char)> = vec![];
     for (inst, _) in &done {
         if installed.iter().any(|i| i.info.name == inst.info.name) {
             for f in db.files(&inst.info.name)? {
@@ -745,7 +755,7 @@ fn run_plan(
                     .map(|o| o == &inst.info.name)
                     .unwrap_or(true);
                 if f.kind == 'd' || mine {
-                    stale.push(f.path);
+                    stale.push((f.path, if f.kind == 'd' { 'R' } else { 'S' }));
                 }
             }
         }
@@ -756,8 +766,8 @@ fn run_plan(
         for (inst, recs) in &done {
             db.stage(inst, recs)?;
         }
-        for p in &stale {
-            journal.rec('S', &cfg.root.join(p))?;
+        for (p, tag) in &stale {
+            journal.rec(*tag, &cfg.root.join(p))?;
         }
         crash_point("staged");
         journal.commit_point(&cfg.root)
@@ -826,6 +836,14 @@ fn set_mode(p: &Path, mode: u32) -> Result<()> {
         .ctx(|| format!("chmod {}", p.display()))
 }
 
+fn resolve_entry(root: &Path, path: &str, kind: &Kind) -> Result<String> {
+    if *kind == Kind::Dir {
+        util::resolve_dir_in_root(root, path)
+    } else {
+        util::resolve_in_root(root, path)
+    }
+}
+
 /// Move the new object (already written at `tmp`) into place, keeping the
 /// previous one aside for rollback.
 fn place(j: &mut Journal, tmp: &Path, target: &Path) -> Result<()> {
@@ -848,10 +866,12 @@ fn extract(
     dir_ok: &mut HashSet<PathBuf>,
     file: &Path,
     info: &PkgInfo,
+    planned: &[crate::tar::Entry],
     old_files: &HashMap<String, FileRec>,
     fault: &mut Option<usize>,
 ) -> Result<Vec<FileRec>> {
     let mut tr = archive::open_tar(file)?;
+    let mut planned = planned.iter();
     let mut recs = vec![];
     let mut done_bytes = 0u64;
     let mut throttle = Throttle::new();
@@ -859,7 +879,20 @@ fn extract(
         if e.path == archive::INFO_NAME {
             continue;
         }
-        let rel = util::safe_rel_path(&e.path)?;
+        let spelled = util::safe_rel_path(&e.path)?;
+        let rel = resolve_entry(&cfg.root, &spelled, &e.kind)?;
+        // The conflict check ran on the paths resolved before extraction. A
+        // symlinked directory created meanwhile (by this or an earlier package
+        // of the transaction) must not redirect a file somewhere unchecked.
+        if planned.next().map(|p| p.path.as_str()) != Some(rel.as_str()) {
+            bail!(
+                "{}: /{} would be redirected to /{} by a symlink installed in the same \
+                 transaction; refusing",
+                info.name,
+                spelled,
+                rel
+            );
+        }
         if let Some(n) = fault {
             if *n == 0 {
                 bail!("injected failure (YONE_TEST_FAIL_AFTER)");
@@ -903,7 +936,7 @@ fn extract(
                 set_mode(&tmp, e.mode)?;
                 done_bytes += e.size;
                 // configuration files changed by the administrator are preserved
-                let user_modified = info.backup.contains(&rel)
+                let user_modified = (info.backup.contains(&rel) || info.backup.contains(&spelled))
                     && old_files
                         .get(&rel)
                         .map(|o| {
@@ -953,7 +986,7 @@ fn extract(
                 });
             }
             Kind::Hardlink(t) => {
-                let src = cfg.root.join(util::safe_rel_path(t)?);
+                let src = cfg.root.join(util::resolve_in_root(&cfg.root, t)?);
                 if let Some(parent) = src.parent() {
                     let canon = fs::canonicalize(parent).ctx(|| format!("link source {t}"))?;
                     if !canon.starts_with(root_canon) {
@@ -1174,7 +1207,7 @@ fn remove_set(
         dirs.sort_by(|a, b| b.cmp(a)); // children before their parents
         dirs.dedup();
         for d in dirs.iter().filter(|d| !still.contains(*d)) {
-            journal.rec('S', &cfg.root.join(d))?;
+            journal.rec('R', &cfg.root.join(d))?;
         }
         for n in &names {
             db.stage_remove(n)?;
