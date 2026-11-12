@@ -1,0 +1,34 @@
+// YVIS — configuration Fastfetch système
+// Installé dans /etc/xdg/fastfetch/config.jsonc (surchargé par ~/.config/fastfetch/config.jsonc)
+{
+  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+  "logo": {
+    "type": "file",
+    "source": "/usr/share/yvis/fastfetch/yvis.txt",
+    "color": { "1": "38;2;139;92;246" },   // violet YVIS #8B5CF6
+    "padding": { "top": 1, "left": 1, "right": 3 }
+  },
+  "display": {
+    "separator": "  ",
+    "color": { "keys": "38;2;139;92;246", "title": "38;2;139;92;246" }
+  },
+  "modules": [
+    "title",
+    "separator",
+    "os",
+    "kernel",
+    "uptime",
+    // Fastfetch ne connaît pas Yone : on compte les paquets via la CLI
+    { "type": "command", "key": "Packages", "text": "echo \"$(yone list 2>/dev/null | wc -l) (yone)\"" },
+    "shell",
+    "de",
+    "wm",
+    "terminal",
+    "cpu",
+    "gpu",
+    "memory",
+    "disk",
+    "break",
+    "colors"
+  ]
+}
