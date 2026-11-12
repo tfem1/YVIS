@@ -44,7 +44,8 @@ while read -r url; do
 done < "$HERE/wget-list"
 [ $fail = 0 ] || exit 1
 
-( cd "$DEST" && sha256sum $(xargs -n1 basename < "$HERE/wget-list") ) > "$DEST/sources.sha256"
+mapfile -t names < <(xargs -n1 basename < "$HERE/wget-list")
+( cd "$DEST" && sha256sum "${names[@]}" ) > "$DEST/sources.sha256"
 if [ -s "$LOCK" ]; then
   if ! diff -u "$LOCK" "$DEST/sources.sha256"; then
     echo "✗ sources differ from the pinned lfs/sources.sha256" >&2
