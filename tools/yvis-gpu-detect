@@ -1,0 +1,70 @@
+#!/bin/sh
+# yvis-gpu-detect — which graphics driver this machine needs.
+#
+#   yvis-gpu-detect [--sysfs DIR] [--ids FILE]
+#
+# Prints shell-style key=value lines, for the installer and the live session:
+#
+#   nvidia=open          an NVIDIA GPU supported by the open kernel modules
+#   nvidia=unsupported   an NVIDIA GPU too old for them (nouveau is used)
+#   nvidia=none          no NVIDIA GPU
+#   hybrid=yes|no        another GPU (Intel/AMD) next to the NVIDIA one:
+#                        laptops with PRIME render offload
+#   gpu=VENDOR:DEVICE:DRIVER-IN-USE   one line per display controller
+#
+# Exit status: 0 when nvidia=open (pre-select the NVIDIA option), 1 otherwise.
+#
+# Support of the open modules is read from --ids (default
+# /usr/share/yvis/nvidia-open-ids: one lowercase hex device id per line,
+# generated from the driver's supported-gpus.json when the NVIDIA package is
+# built). Without that file the rule is the architecture boundary: the open
+# modules need a GSP, present from Turing (device ids 0x1e00 and up;
+# Volta 0x1dbx and Pascal and older are below it).
+set -eu
+
+SYSFS=/sys
+IDS=/usr/share/yvis/nvidia-open-ids
+while [ $# -gt 0 ]; do
+  case $1 in
+    --sysfs) SYSFS=$2; shift 2 ;;
+    --ids) IDS=$2; shift 2 ;;
+    -h | --help) sed -n '2,25p' "$0"; exit 0 ;;
+    *) echo "unknown option $1" >&2; exit 2 ;;
+  esac
+done
+
+nvidia=none
+others=0
+supported() { # device id without 0x
+  if [ -r "$IDS" ]; then
+    grep -qix "$1" "$IDS"
+  else
+    [ $((0x$1)) -ge $((0x1e00)) ]
+  fi
+}
+
+for dev in "$SYSFS"/bus/pci/devices/*; do
+  [ -r "$dev/class" ] || continue
+  class=$(cat "$dev/class")
+  case $class in 0x03*) ;; *) continue ;; esac # display controllers only
+  vendor=$(cat "$dev/vendor"); vendor=${vendor#0x}
+  device=$(cat "$dev/device"); device=${device#0x}
+  driver=-
+  [ -L "$dev/driver" ] && driver=$(basename "$(readlink "$dev/driver")")
+  echo "gpu=$vendor:$device:$driver"
+  if [ "$vendor" = 10de ]; then
+    if supported "$device"; then
+      nvidia=open
+    elif [ "$nvidia" != open ]; then
+      nvidia=unsupported
+    fi
+  else
+    others=$((others + 1))
+  fi
+done
+
+hybrid=no
+[ "$nvidia" != none ] && [ "$others" -gt 0 ] && hybrid=yes
+echo "nvidia=$nvidia"
+echo "hybrid=$hybrid"
+[ "$nvidia" = open ]

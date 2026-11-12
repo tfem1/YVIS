@@ -4,4 +4,5 @@ LFS_VERSION=13.1-systemd
 LFS_BOOK=https://www.linuxfromscratch.org/lfs/view/13.1-systemd
 # Fallback for sources whose upstream host is down (official LFS mirror).
 LFS_MIRRORS="https://ftp.osuosl.org/pub/lfs/lfs-packages/13.1 https://www.linuxfromscratch.org/lfs/downloads/13.1-systemd"
-LFS_TGT=x86_64-yvis-linux-gnu
+# The book's target triplet; kept as-is so its commands apply verbatim.
+LFS_TGT=x86_64-lfs-linux-gnu
