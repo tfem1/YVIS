@@ -42,6 +42,10 @@ EOF</kbd></pre>
 <pre class="userinput"><kbd class="command">./configure --disable-runuser \\
             --docdir=/usr/share/doc/check</kbd></pre>
 <pre class="userinput"><kbd class="command">PAGE=A4 make -k check</kbd></pre>
+<pre class="userinput"><kbd class="command">ABI=32 ./configure ...</kbd></pre>
+<pre class="userinput"><kbd class="command">cat $(find -name '*.log') | grep -c ^PASS</kbd></pre>
+<pre class="userinput"><kbd class="command">TEST_JOBS=$(nproc) make test_harness</kbd></pre>
+<pre class="userinput"><kbd class="command">bash tests/run.sh --srcdir=$PWD</kbd></pre>
 </body></html>"""
 
 SQLITE = """<html><body><h1 class="sect1"><a id="ch-system-sqlite"></a>8.52 Sqlite-3530400</h1>
@@ -124,6 +128,10 @@ class Extract(unittest.TestCase):
         self.assertIn("\ncat > /etc/nsswitch.conf << \"EOF\"\npasswd: files systemd", g)
         self.assertIn("\n./configure --disable-runuser", g)
         self.assertIn("SKIPPED (test suite)\n# PAGE=A4 make -k check", g)
+        self.assertIn("SKIPPED (example)\n# ABI=32 ./configure ...", g)
+        self.assertIn("SKIPPED (test suite)\n# cat $(find -name '*.log') | grep -c ^PASS", g)
+        self.assertIn("SKIPPED (test suite)\n# TEST_JOBS=$(nproc) make test_harness", g)
+        self.assertIn("SKIPPED (test suite)\n# bash tests/run.sh --srcdir=$PWD", g)
 
 
 if __name__ == "__main__":

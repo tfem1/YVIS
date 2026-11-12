@@ -32,7 +32,7 @@ CHAPTERS = ("chapter05", "chapter06", "chapter07", "chapter08")
 # Classification looks at commands only: the first word of every simple
 # command (after VAR=value prefixes), outside heredoc bodies. Matching option
 # text would misfire (`--disable-runuser` is not `runuser`).
-TEST_TARGETS = {"check", "test", "tests", "test-all", "check-root"}
+TEST_TARGETS = {"check", "test", "tests", "test-all", "check-root", "test_harness"}
 INTERACTIVE_CMDS = {"exec", "logout", "exit", "passwd", "tzselect", "chroot"}
 HEREDOC = re.compile(r"""<<-?\s*(['"]?)(\w+)\1""")
 ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
@@ -70,7 +70,9 @@ def is_test(words):
         return True
     if w0 in ("test_summary", "pytest") or words[:3] == ["python3", "-m", "pytest"]:
         return True
-    if w0 == "grep" and any(re.search(r"\.(log|sum)\b|^\$\(find", x) for x in words[1:]):
+    if w0 in ("grep", "cat") and any(re.search(r"\.(log|sum)\b|^\$\(find", x) for x in words[1:]):
+        return True
+    if any(re.match(r"(\./)?tests?/run", x) for x in words[:2]):
         return True
     return False
 
@@ -184,6 +186,8 @@ def find_tarball(title, tarballs):
 
 def classify(text, replaceable):
     cmds = list(commands(text))
+    if any("..." in c for c in cmds):
+        return "example"  # e.g. `ABI=32 ./configure ...`
     if any(is_test(c) for c in cmds):
         return "test suite"
     if any(is_interactive(c) for c in cmds):
