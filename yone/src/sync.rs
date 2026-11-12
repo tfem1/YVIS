@@ -1,10 +1,12 @@
 //! Repository indexes (`/var/lib/yone/sync/<repo>.index`) and `yone update`.
 
 use crate::config::{Config, SigLevel};
+use crate::db::LocalDb;
 use crate::download::{fetch_all, Job};
 use crate::error::{Context, Result};
 use crate::pkginfo::{index_generated, parse_index, IndexEntry};
 use crate::ui::Ui;
+use crate::version::vercmp;
 use crate::version::Dep;
 use crate::{bail, sign, util};
 use std::fs;
@@ -154,4 +156,69 @@ pub fn update(cfg: &Config, ui: &Ui) -> Result<()> {
     let _ = fs::remove_dir_all(&stage);
     ui.success("indexes up to date");
     Ok(())
+}
+
+/// Removes a private scratch directory when dropped.
+struct TempDir(std::path::PathBuf);
+
+impl Drop for TempDir {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
+fn private_dir(tag: &str) -> Result<TempDir> {
+    use std::io::Read;
+    use std::os::unix::fs::DirBuilderExt;
+    let mut rnd = [0u8; 12];
+    fs::File::open("/dev/urandom")?.read_exact(&mut rnd)?;
+    let hex: String = rnd.iter().map(|b| format!("{b:02x}")).collect();
+    let p = std::env::temp_dir().join(format!("yone-{tag}-{hex}"));
+    fs::DirBuilder::new()
+        .mode(0o700)
+        .create(&p)
+        .ctx(|| format!("create {}", p.display()))?;
+    Ok(TempDir(p))
+}
+
+/// `yone check-updates`: list the packages `yone upgrade` would update, as
+/// `name old -> new` lines, like Arch's checkupdates. Unless `offline`, the
+/// indexes are refreshed into a private copy of the sync database: it needs
+/// no root, takes no lock and never changes the system's indexes, so a
+/// desktop widget can call it on a timer.
+pub fn check_updates(cfg: &Config, ui: &Ui, offline: bool) -> Result<Vec<String>> {
+    let _tmp;
+    let sync = if offline {
+        SyncDb::load(cfg, ui)?
+    } else {
+        let tmp = private_dir("check")?;
+        let mut copy = cfg.clone();
+        copy.dbpath = tmp.0.clone();
+        let syncdir = copy.dbpath.join("sync");
+        fs::create_dir_all(&syncdir)?;
+        // start from the trusted indexes so the anti-rollback check still applies
+        if let Ok(rd) = fs::read_dir(cfg.dbpath.join("sync")) {
+            for e in rd.flatten() {
+                if e.path().is_file() {
+                    fs::copy(e.path(), syncdir.join(e.file_name()))?;
+                }
+            }
+        }
+        update(&copy, ui)?;
+        let s = SyncDb::load(&copy, ui)?;
+        _tmp = tmp;
+        s
+    };
+    let mut out = vec![];
+    for i in LocalDb::open(&cfg.dbpath).list()? {
+        if let Some(e) = sync.find(&i.info.name) {
+            if vercmp(&e.info.version, &i.info.version) == std::cmp::Ordering::Greater {
+                out.push(format!(
+                    "{} {} -> {}",
+                    i.info.name, i.info.version, e.info.version
+                ));
+            }
+        }
+    }
+    Ok(out)
 }

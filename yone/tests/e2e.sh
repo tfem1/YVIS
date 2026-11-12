@@ -147,6 +147,10 @@ echo "== upgrade with configuration preservation"
 echo "setting=2  # admin" > "$ROOT/etc/foo.conf"
 foo_recipe 1.1 'setting=1\nnew=1\n'
 build r/foo; rm repo/foo-1.0-1-x86_64.yon*; publish
+idx=$(sha "$ROOT/var/lib/yone/sync/core.index")
+[ "$("${Y[@]}" check-updates 2>/dev/null)" = "foo 1.0-1 -> 1.1-1" ] && ok "check-updates lists foo 1.0-1 -> 1.1-1"
+[ "$idx" = "$(sha "$ROOT/var/lib/yone/sync/core.index")" ] && ok "  ...without touching the system's indexes"
+[ "$("${Y[@]}" check-updates --offline 2>/dev/null || true)" = "" ] && ok "check-updates --offline only reads the cached indexes"
 "${Y[@]}" update >/dev/null
 fails env YONE_TEST_FAIL_AFTER=3 "${Y[@]}" upgrade
 [ "$("$ROOT/usr/bin/foo")" = "foo 1.0" ] && [ -e "$ROOT/usr/share/foo/legacy.txt" ] && ok "failed upgrade rolled back to foo 1.0"
@@ -156,6 +160,8 @@ grep -q "admin" "$ROOT/etc/foo.conf" && grep -q "new=1" "$ROOT/etc/foo.conf.yone
 [ ! -e "$ROOT/usr/share/foo/legacy.txt" ] && ok "files dropped by the new version are removed"
 "${Y[@]}" verify >/dev/null && ok "verify after upgrade"
 "${Y[@]}" upgrade 2>&1 | grep -q "up to date" && ok "second upgrade is a no-op"
+rc=0; "${Y[@]}" check-updates >/dev/null 2>&1 || rc=$?
+[ "$rc" = 2 ] && ok "check-updates exits 2 when nothing is to update"
 rm "$ROOT/etc/foo.conf.yonenew"
 foo_recipe 1.2 'setting=1\nnew=2\n'
 build r/foo; rm repo/foo-1.1-1-x86_64.yon*; publish

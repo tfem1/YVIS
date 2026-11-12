@@ -34,6 +34,8 @@ commands:
   autoremove                  remove dependencies nothing needs anymore
   update                      download and verify repository indexes
   upgrade                     upgrade every installed package
+  check-updates               list available upgrades without root or changes
+                              (exit 0: some, 2: none; --offline: cached indexes)
   search <text>               search the repositories
   info <pkg>                  show package details
   list                        list installed packages (--explicit, --deps)
@@ -161,6 +163,15 @@ fn run() -> Result<i32> {
             sync::update(&c, &ui)?;
         }
         "upgrade" => transaction::upgrade(&cfg()?, &ui, &opts)?,
+        "check-updates" | "cu" => {
+            let list = sync::check_updates(&cfg()?, &ui, opts.offline)?;
+            for l in &list {
+                println!("{l}");
+            }
+            if list.is_empty() {
+                return Ok(2);
+            }
+        }
         "search" | "s" => {
             need(1)?;
             let c = cfg()?;
