@@ -29,37 +29,54 @@ import urllib.request
 
 CHAPTERS = ("chapter05", "chapter06", "chapter07", "chapter08")
 
-# Test suites: skipped in CI builds (they would multiply the build time) and
-# run separately by a dedicated job later.
-TEST = re.compile(
-    r"""(
-        \bmake\b[^\n;&|]*?\s(-k\s+)?(check|test|tests|test-all)\b
-      | \bninja\b[^\n;&|]*\stest\b
-      | \bmeson\s+test\b
-      | \bchown\s+-R\s+tester\b
-      | \bsu\s+tester\b
-      | \brunuser\b
-      | test_summary
-      | \bpytest\b
-      | \btestsuite\b
-      | ^\s*grep\b.*\.(sum|log)\b
-    )""",
-    re.X | re.M,
-)
+# Classification looks at commands only: the first word of every simple
+# command (after VAR=value prefixes), outside heredoc bodies. Matching option
+# text would misfire (`--disable-runuser` is not `runuser`).
+TEST_TARGETS = {"check", "test", "tests", "test-all", "check-root"}
+INTERACTIVE_CMDS = {"exec", "logout", "exit", "passwd", "tzselect", "chroot"}
+HEREDOC = re.compile(r"""<<-?\s*(['"]?)(\w+)\1""")
+ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 
-# Commands that only make sense for a person typing them.
-INTERACTIVE = re.compile(
-    r"""^\s*(
-        exec\s
-      | logout\b
-      | exit\b
-      | passwd\b
-      | tzselect\b
-      | chroot\s
-      | su\s+-\s
-    )""",
-    re.X | re.M,
-)
+
+def commands(text):
+    """Yield the word list of every simple command of a block."""
+    lines = text.replace("\\\n", " ").split("\n")
+    end = None
+    for line in lines:
+        if end is not None:
+            if line.strip() == end:
+                end = None
+            continue
+        m = HEREDOC.search(line)
+        if m:
+            end = m.group(2)
+        for cmd in re.split(r"&&|\|\||;|\|", line):
+            words = cmd.split()
+            while words and ASSIGN.match(words[0]):
+                words.pop(0)
+            if words:
+                yield words
+
+
+def is_test(words):
+    w0 = os.path.basename(words[0])
+    if w0 in ("make", "ninja", "meson") and TEST_TARGETS & set(words[1:]):
+        return True
+    if w0 == "chown" and "tester" in words:
+        return True
+    if w0 in ("su", "runuser") and "tester" in words:
+        return True
+    if w0 == "unshare" and "test" in words:
+        return True
+    if w0 in ("test_summary", "pytest") or words[:3] == ["python3", "-m", "pytest"]:
+        return True
+    if w0 == "grep" and any(re.search(r"\.(log|sum)\b|^\$\(find", x) for x in words[1:]):
+        return True
+    return False
+
+
+def is_interactive(words):
+    return os.path.basename(words[0]) in INTERACTIVE_CMDS
 
 
 class Page(html.parser.HTMLParser):
@@ -69,11 +86,13 @@ class Page(html.parser.HTMLParser):
         super().__init__(convert_charrefs=True)
         self.sid = None
         self.title = ""
-        self.blocks = []  # (text, has_replaceable)
+        self.blocks = []  # (text, [placeholders])
         self._in_h1 = False
         self._in_pre = 0
         self._buf = []
-        self._repl = False
+        self._repl = []
+        self._in_repl = 0
+        self._rbuf = []
 
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
@@ -84,16 +103,23 @@ class Page(html.parser.HTMLParser):
         elif tag == "pre" and "userinput" in (a.get("class") or "").split():
             self._in_pre = 1
             self._buf = []
-            self._repl = False
+            self._repl = []
         elif self._in_pre:
             if tag == "pre":
                 self._in_pre += 1
-            if "replaceable" in (a.get("class") or "").split():
-                self._repl = True
+            if self._in_repl:
+                self._in_repl += 1
+            elif "replaceable" in (a.get("class") or "").split():
+                self._in_repl = 1
+                self._rbuf = []
 
     def handle_endtag(self, tag):
         if tag == "h1":
             self._in_h1 = False
+        elif self._in_repl:
+            self._in_repl -= 1
+            if self._in_repl == 0:
+                self._repl.append("".join(self._rbuf))
         elif tag == "pre" and self._in_pre:
             self._in_pre -= 1
             if self._in_pre == 0:
@@ -104,6 +130,8 @@ class Page(html.parser.HTMLParser):
             self.title += data
         if self._in_pre:
             self._buf.append(data)
+        if self._in_repl:
+            self._rbuf.append(data)
 
 
 class Links(html.parser.HTMLParser):
@@ -136,22 +164,32 @@ def norm(s):
 
 def find_tarball(title, tarballs):
     """Map a section title such as 'Libstdc++ from GCC-16.2.0' to its tarball."""
-    for tok in re.findall(r"[A-Za-z][\w+.-]*?-\d[\w.]*", title):
+    toks = re.findall(r"[A-Za-z][\w+.-]*?-\d[\w.]*", title)
+    for tok in toks:
         n = norm(tok)
         hits = [t for t in tarballs if norm(t).startswith(n)]
         if hits:
             # the shortest name wins: tcl8.6.18-src before tcl8.6.18-html
             return min(hits, key=len)
+    # 'Sqlite-3530400' is shipped as sqlite-autoconf-3530400.tar.gz
+    for tok in toks:
+        name, ver = tok.rsplit("-", 1)
+        hits = [t for t in tarballs
+                if norm(t).startswith(norm(name)) and norm(ver) in norm(t)
+                and not re.search(r"-(doc|html|docs)", t)]
+        if hits:
+            return min(hits, key=len)
     return None
 
 
 def classify(text, replaceable):
+    cmds = list(commands(text))
+    if any(is_test(c) for c in cmds):
+        return "test suite"
+    if any(is_interactive(c) for c in cmds):
+        return "interactive"
     if replaceable:
         return "needs a value from lfs/overrides"
-    if INTERACTIVE.search(text):
-        return "interactive"
-    if TEST.search(text):
-        return "test suite"
     return None
 
 
@@ -160,6 +198,7 @@ def main():
     ap.add_argument("--book", required=True, help="book URL or local HTML directory")
     ap.add_argument("--sources", required=True, help="the book's wget-list")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--values", help="placeholder values: section <placeholder> value")
     o = ap.parse_args()
 
     with open(o.sources) as f:
@@ -168,6 +207,15 @@ def main():
             for l in f
             if l.strip() and not l.strip().endswith(".patch")
         ]
+
+    values = {}
+    if o.values:
+        with open(o.values) as f:
+            for l in f:
+                l = l.strip()
+                if l and not l.startswith("#"):
+                    sec, ph, val = l.split(None, 2)
+                    values[(sec, ph)] = val
 
     index, _ = read(o.book, "index.html")
     lp = Links()
@@ -201,8 +249,15 @@ def main():
             f"# package: {tb or '-'}",
         ]
         for i, (block, repl) in enumerate(p.blocks, 1):
-            why = classify(block, repl)
+            why = classify(block, bool(repl))
             lines.append("")
+            if why and why.startswith("needs") and all((sid, r) in values for r in repl):
+                for r in repl:
+                    block = block.replace(r, values[(sid, r)])
+                lines.append(f"# --- block {i} (YVIS values from lfs/values: "
+                             + ", ".join(f"{r}={values[(sid, r)]}" for r in repl) + ")")
+                lines.append(block)
+                continue
             if why:
                 lines.append(f"# --- block {i}: SKIPPED ({why})")
                 lines += ["# " + l if l else "#" for l in block.split("\n")]

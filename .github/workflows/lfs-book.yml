@@ -22,7 +22,7 @@ jobs:
           . lfs/config
           curl -fsSL "$LFS_BOOK/md5sums" -o lfs/md5sums
           rm -rf lfs/book
-          python3 -I lfs/extract.py --book "$LFS_BOOK" --sources lfs/wget-list --out lfs/book
+          python3 -I lfs/extract.py --book "$LFS_BOOK" --sources lfs/wget-list --values lfs/values --out lfs/book
           {
             echo "## LFS $LFS_VERSION"
             echo '```'

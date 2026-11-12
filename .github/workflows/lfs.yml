@@ -1,0 +1,119 @@
+# Builds the LFS base of YVIS from lfs/book/ (the pinned book's own commands).
+#   toolchain: chapters 5-7 (cross toolchain, temporary tools, chroot tools)
+#   system:    chapter 8 (the final base system)
+# Each job hands $LFS to the next one as a zstd archive. Test suites are not
+# run here (they would multiply the build time); see lfs/book/*/ for the
+# skipped blocks.
+name: lfs
+
+on:
+  workflow_dispatch:
+    inputs:
+      stop_after:
+        description: "Stop after this stage"
+        type: choice
+        options: [system, toolchain]
+        default: system
+
+permissions:
+  contents: read
+
+env:
+  LFS: /mnt/lfs
+
+jobs:
+  toolchain:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h / /mnt
+
+      - uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/sources
+          key: lfs-sources-${{ hashFiles('lfs/wget-list') }}
+
+      - name: Sources (verified against lfs/sources.sha256)
+        run: |
+          bash lfs/fetch-sources.sh "$RUNNER_TEMP/sources"
+          sudo mkdir -p "$LFS/sources"
+          sudo cp "$RUNNER_TEMP"/sources/* "$LFS/sources/"
+
+      - name: Host and $LFS (chapter 4)
+        run: sudo -E lfs/build.sh host
+
+      - name: Chapter 5 — cross toolchain
+        run: sudo -E lfs/build.sh run ch05
+
+      - name: Chapter 6 — temporary tools
+        run: sudo -E lfs/build.sh run ch06
+
+      - name: Chapter 7 — chroot and additional tools
+        run: sudo -E lfs/build.sh run ch07
+
+      - name: Pack
+        if: always()
+        run: |
+          sudo -E lfs/build.sh pack "$RUNNER_TEMP/lfs-toolchain.tar.zst"
+          ls "$LFS/.yvis/done" | wc -l | xargs echo "sections done:" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lfs-toolchain
+          path: ${{ runner.temp }}/lfs-toolchain.tar.zst
+          compression-level: 0
+          retention-days: 7
+
+  system:
+    needs: toolchain
+    if: inputs.stop_after == 'system'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h / /mnt
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: lfs-toolchain
+          path: ${{ runner.temp }}
+
+      - uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/sources
+          key: lfs-sources-${{ hashFiles('lfs/wget-list') }}
+
+      - name: Restore $LFS and sources
+        run: |
+          sudo -E lfs/build.sh unpack "$RUNNER_TEMP/lfs-toolchain.tar.zst"
+          bash lfs/fetch-sources.sh "$RUNNER_TEMP/sources"
+          sudo mkdir -p "$LFS/sources"
+          sudo cp "$RUNNER_TEMP"/sources/* "$LFS/sources/"
+          sudo ln -sf bash /bin/sh
+
+      - name: Chapter 8 — base system
+        run: sudo -E lfs/build.sh run ch08
+
+      - name: Pack
+        if: always()
+        run: |
+          sudo -E lfs/build.sh pack "$RUNNER_TEMP/lfs-system.tar.zst"
+          ls "$LFS/.yvis/done" | wc -l | xargs echo "sections done:" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lfs-system
+          path: ${{ runner.temp }}/lfs-system.tar.zst
+          compression-level: 0
+          retention-days: 14

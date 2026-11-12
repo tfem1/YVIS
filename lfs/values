@@ -1,0 +1,3 @@
+# Values YVIS gives to the book's <placeholders>: section  placeholder  value
+ch-system-glibc   <xxx>          UTC
+ch-system-groff   <paper_size>   A4
