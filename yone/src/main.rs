@@ -6,6 +6,7 @@ mod config;
 mod db;
 mod download;
 mod error;
+mod hooks;
 mod pkginfo;
 mod sha256;
 mod sign;
@@ -40,6 +41,8 @@ commands:
   info <pkg>                  show package details
   list                        list installed packages (--explicit, --deps)
   verify [pkg...]             check installed files against the database
+  owns <path>...              which package owns a file or directory
+  files <pkg>...              list the files of installed packages
   clean                       remove cached packages not installed (--all: everything)
   recover                     roll back an interrupted transaction
   build <dir>                 build a package from <dir>/YONEBUILD
@@ -258,6 +261,46 @@ fn run() -> Result<i32> {
                 println!("{} {}", i.info.name, ui.accent(&i.info.version));
             }
         }
+        "owns" => {
+            need(1)?;
+            let c = cfg()?;
+            let db = LocalDb::open(&c.dbpath);
+            let installed = db.list()?;
+            let mut status = 0;
+            for a in args {
+                let rel = a.trim_start_matches('/');
+                let real = util::resolve_in_root(&c.root, rel)?;
+                let dir = util::resolve_dir_in_root(&c.root, rel).unwrap_or_default();
+                let mut owners = vec![];
+                for i in &installed {
+                    if db.files(&i.info.name)?.iter().any(|f| {
+                        (f.kind != 'd' && f.path == real) || (f.kind == 'd' && f.path == dir)
+                    }) {
+                        owners.push(format!("{} {}", i.info.name, i.info.version));
+                    }
+                }
+                if owners.is_empty() {
+                    eprintln!("{} /{} is not owned by any package", ui.red("error:"), real);
+                    status = 1;
+                } else {
+                    println!("/{} is owned by {}", real, owners.join(", "));
+                }
+            }
+            return Ok(status);
+        }
+        "files" => {
+            need(1)?;
+            let c = cfg()?;
+            let db = LocalDb::open(&c.dbpath);
+            for n in args {
+                if db.get(n)?.is_none() {
+                    bail!("{n} is not installed");
+                }
+                for f in db.files(n)? {
+                    println!("{} /{}{}", n, f.path, if f.kind == 'd' { "/" } else { "" });
+                }
+            }
+        }
         "verify" => {
             if !transaction::verify(&cfg()?, &ui, args)? {
                 return Ok(1);
@@ -289,6 +332,12 @@ fn run() -> Result<i32> {
                 compression: compress.as_deref().unwrap_or(&c.compression),
                 key: key.as_deref(),
                 packager,
+                installed: LocalDb::open(&c.dbpath)
+                    .list()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|i| i.info)
+                    .collect(),
             };
             build::build(&dir, &bo, &ui)?;
         }

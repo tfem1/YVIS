@@ -206,9 +206,8 @@ pub fn write_package(
 ) -> Result<()> {
     let mut nodes = vec![];
     walk(pkgdir, "", &mut nodes)?;
-    if nodes.is_empty() {
-        bail!("package directory is empty — did the @package step install anything into $PKGDIR?");
-    }
+    // An empty package is a meta package: only metadata and dependencies
+    // (desktop profiles such as "kde" or "hyprland").
     info.isize = nodes
         .iter()
         .filter(|n| n.meta.is_file())
@@ -255,6 +254,8 @@ pub struct BuildOpts<'a> {
     pub compression: &'a str,
     pub key: Option<&'a Path>,
     pub packager: String,
+    /// Packages installed on the build machine, to check makedepends.
+    pub installed: Vec<PkgInfo>,
 }
 
 pub fn build(dir: &Path, o: &BuildOpts, ui: &Ui) -> Result<PathBuf> {
@@ -267,6 +268,7 @@ pub fn build(dir: &Path, o: &BuildOpts, ui: &Ui) -> Result<PathBuf> {
         compression: o.compression,
         key: o.key,
         packager: o.packager.clone(),
+        installed: o.installed.clone(),
     };
     let recipe_path = dir.join("YONEBUILD");
     let text =
@@ -275,6 +277,19 @@ pub fn build(dir: &Path, o: &BuildOpts, ui: &Ui) -> Result<PathBuf> {
     ui.header(&format!("Building {} {}", r.info.name, r.info.version));
     if !r.makedepends.is_empty() {
         ui.info(&ui.dim(&format!("makedepends: {}", r.makedepends.join(" "))));
+        let mut missing = vec![];
+        for d in &r.makedepends {
+            let dep = crate::version::Dep::parse(d)?;
+            if !o.installed.iter().any(|p| dep.satisfied_by(p)) {
+                missing.push(d.as_str());
+            }
+        }
+        if !missing.is_empty() {
+            ui.warn(&format!(
+                "makedepends not installed: {} (the build may fail)",
+                missing.join(" ")
+            ));
+        }
     }
     let work = dir.join(".yone-work");
     let srcdir = work.join("src");
@@ -355,6 +370,9 @@ pub fn build(dir: &Path, o: &BuildOpts, ui: &Ui) -> Result<PathBuf> {
         .outdir
         .join(format!("{}-{}-{}.yon", info.name, info.version, info.arch));
     write_package(&mut info, &pkgdir, &out, o.compression, epoch)?;
+    if info.isize == 0 && fs::read_dir(&pkgdir)?.next().is_none() {
+        ui.info("meta package: no files, only metadata and dependencies");
+    }
     let size = fs::metadata(&out)?.len();
     if let Some(k) = o.key {
         sign::sign(&out, k)?;

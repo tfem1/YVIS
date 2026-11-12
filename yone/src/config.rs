@@ -7,6 +7,7 @@
 //! parallel = 4
 //! siglevel = required       # required | optional | never
 //! compression = zstd        # used by `yone build`
+//! hold = linux nvidia-open  # never upgraded by `yone upgrade`
 //!
 //! [core]
 //! server = https://repo.yvis.org/$channel/$repo/$arch
@@ -41,6 +42,7 @@ pub struct Config {
     pub parallel: usize,
     pub siglevel: SigLevel,
     pub compression: String,
+    pub hold: Vec<String>,
     pub repos: Vec<Repo>,
 }
 
@@ -56,6 +58,7 @@ impl Config {
             parallel: 4,
             siglevel: SigLevel::Required,
             compression: "zstd".into(),
+            hold: vec![],
             repos: vec![],
         };
         let path = file
@@ -104,6 +107,7 @@ impl Config {
                         .ctx(|| format!("{}:{}: parallel", path.display(), n + 1))?
                 }
                 ("options", "compression") => c.compression = v,
+                ("options", "hold") => c.hold.extend(v.split_whitespace().map(str::to_string)),
                 ("options", "siglevel") => {
                     c.siglevel = match v.as_str() {
                         "required" => SigLevel::Required,

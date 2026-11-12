@@ -28,7 +28,7 @@ use crate::sync::SyncDb;
 use crate::tar::Kind;
 use crate::ui::{human_bytes, Throttle, Ui};
 use crate::version::{vercmp, Dep};
-use crate::{bail, sign, util};
+use crate::{bail, hooks, sign, util};
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufWriter, Write};
@@ -78,6 +78,38 @@ impl Lock {
         }
         Ok(Lock(f))
     }
+}
+
+// ------------------------------------------------------------ interrupts
+
+/// Ctrl-C / SIGTERM during a transaction: the flag is checked between
+/// files, and before the commit point the transaction rolls back cleanly
+/// instead of leaving a journal behind. After the commit point it finishes.
+static INTERRUPTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+extern "C" fn on_signal(_: i32) {
+    INTERRUPTED.store(true, std::sync::atomic::Ordering::SeqCst);
+}
+
+extern "C" {
+    fn signal(signum: i32, handler: usize) -> usize;
+    #[cfg(debug_assertions)]
+    fn raise(sig: i32) -> i32;
+}
+
+fn catch_interrupts() {
+    // SAFETY: the handler only stores into an atomic, which is signal-safe.
+    unsafe {
+        signal(2, on_signal as extern "C" fn(i32) as usize); // SIGINT
+        signal(15, on_signal as extern "C" fn(i32) as usize); // SIGTERM
+    }
+}
+
+fn check_interrupted() -> Result<()> {
+    if INTERRUPTED.load(std::sync::atomic::Ordering::SeqCst) {
+        bail!("interrupted");
+    }
+    Ok(())
 }
 
 // --------------------------------------------------------------- journal
@@ -465,6 +497,12 @@ pub fn upgrade(cfg: &Config, ui: &Ui, opts: &Opts) -> Result<()> {
     for i in &installed {
         if let Some(e) = sync.find(&i.info.name) {
             match vercmp(&e.info.version, &i.info.version) {
+                std::cmp::Ordering::Greater if cfg.hold.contains(&i.info.name) => {
+                    ui.info(&format!(
+                        "{}: held ({} -> {} available; see `hold` in yone.conf)",
+                        i.info.name, i.info.version, e.info.version
+                    ))
+                }
                 std::cmp::Ordering::Greater => items.push(Item {
                     info: e.info.clone(),
                     source: Source::Repo(e.clone()),
@@ -530,6 +568,7 @@ fn run_plan(
     if !ui.confirm("Proceed with installation?")? {
         bail!("aborted by user");
     }
+    catch_interrupts();
 
     // 1. fetch into the cache
     fs::create_dir_all(&cfg.cachedir)?;
@@ -732,6 +771,7 @@ fn run_plan(
             ui.warn("installation failed — rolling back");
             drop(journal);
             let n = rollback(cfg)?;
+            util::log(cfg, &format!("transaction rolled back: {e}"));
             ui.info(&format!(
                 "rolled back {n} change(s); the system is unchanged"
             ));
@@ -769,6 +809,7 @@ fn run_plan(
         for (p, tag) in &stale {
             journal.rec(*tag, &cfg.root.join(p))?;
         }
+        check_interrupted()?;
         crash_point("staged");
         journal.commit_point(&cfg.root)
     })();
@@ -780,7 +821,36 @@ fn run_plan(
     }
     drop(journal);
     roll_forward(cfg)?;
-    run_triggers(cfg, ui, &done);
+    let mut ops = vec![];
+    for (inst, _) in &done {
+        let (op, line) = match installed.iter().find(|i| i.info.name == inst.info.name) {
+            Some(o) if o.info.version == inst.info.version => (
+                hooks::Op::Upgrade,
+                format!("reinstalled {} ({})", inst.info.name, inst.info.version),
+            ),
+            Some(o) => (
+                hooks::Op::Upgrade,
+                format!(
+                    "upgraded {} ({} -> {})",
+                    inst.info.name, o.info.version, inst.info.version
+                ),
+            ),
+            None => (
+                hooks::Op::Install,
+                format!("installed {} ({})", inst.info.name, inst.info.version),
+            ),
+        };
+        util::log(cfg, &line);
+        if !ops.contains(&op) {
+            ops.push(op);
+        }
+    }
+    let mut changed: Vec<String> = done
+        .iter()
+        .flat_map(|(_, r)| r.iter().map(|f| f.path.clone()))
+        .collect();
+    changed.extend(stale.into_iter().map(|(p, _)| p));
+    hooks::run(cfg, ui, &ops, &changed);
     ui.success(&format!("{} package(s) installed", done.len()));
     Ok(())
 }
@@ -878,6 +948,17 @@ fn extract(
     while let Some(e) = tr.next_entry().ctx(|| file.display().to_string())? {
         if e.path == archive::INFO_NAME {
             continue;
+        }
+        check_interrupted()?;
+        #[cfg(debug_assertions)]
+        if let Some(n) = std::env::var("YONE_TEST_SIGINT_AFTER")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+        {
+            if recs.len() == n {
+                // SAFETY: raise only delivers a signal to this process.
+                unsafe { raise(2) };
+            }
         }
         let spelled = util::safe_rel_path(&e.path)?;
         let rel = resolve_entry(&cfg.root, &spelled, &e.kind)?;
@@ -1039,24 +1120,6 @@ fn extract(
     Ok(recs)
 }
 
-/// Post-transaction triggers. Kept deliberately small and declarative.
-fn run_triggers(cfg: &Config, ui: &Ui, done: &[(Installed, Vec<FileRec>)]) {
-    let touches = |prefix: &str| {
-        done.iter()
-            .any(|(_, r)| r.iter().any(|f| f.path.starts_with(prefix)))
-    };
-    if touches("usr/lib") && cfg.root.join("etc/ld.so.conf").exists() {
-        let mut cmd = std::process::Command::new("ldconfig");
-        if !cfg.is_live_root() {
-            cmd.arg("-r").arg(&cfg.root);
-        }
-        match cmd.status() {
-            Ok(s) if s.success() => ui.info("trigger: ldconfig"),
-            _ => ui.warn("trigger ldconfig failed"),
-        }
-    }
-}
-
 // --------------------------------------------------------------- removal
 
 pub fn remove(cfg: &Config, ui: &Ui, names: &[String], opts: &Opts) -> Result<()> {
@@ -1168,9 +1231,11 @@ fn remove_set(
     if !ui.confirm("Proceed with removal?")? {
         bail!("aborted by user");
     }
+    catch_interrupts();
     let owners = db.owners()?;
     let mut journal = Journal::create(cfg)?;
     let mut dirs: Vec<String> = vec![];
+    let mut changed: Vec<String> = vec![];
     let result: Result<()> = (|| {
         for n in &names {
             let info = &installed.iter().find(|i| &&i.info.name == n).unwrap().info;
@@ -1197,9 +1262,11 @@ fn remove_set(
                         f.path, f.path
                     ));
                 }
+                check_interrupted()?;
                 journal.rec('B', &p)?;
                 fs::rename(&p, util::suffixed(&p, ".yone-old"))
                     .ctx(|| format!("remove {}", p.display()))?;
+                changed.push(f.path.clone());
             }
         }
         Ok(())
@@ -1223,6 +1290,7 @@ fn remove_set(
         for n in &names {
             db.stage_remove(n)?;
         }
+        check_interrupted()?;
         crash_point("staged");
         journal.commit_point(&cfg.root)
     });
@@ -1230,10 +1298,16 @@ fn remove_set(
         ui.warn("removal failed — rolling back");
         drop(journal);
         rollback(cfg)?;
+        util::log(cfg, &format!("transaction rolled back: {e}"));
         return Err(e);
     }
     drop(journal);
     roll_forward(cfg)?;
+    for n in &names {
+        let i = installed.iter().find(|i| &&i.info.name == n).unwrap();
+        util::log(cfg, &format!("removed {} ({})", n, i.info.version));
+    }
+    hooks::run(cfg, ui, &[hooks::Op::Remove], &changed);
     ui.success(&format!("{} package(s) removed", names.len()));
     Ok(())
 }

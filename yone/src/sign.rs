@@ -68,6 +68,9 @@ pub fn keygen(prefix: &Path) -> Result<(PathBuf, PathBuf)> {
     if secret.exists() {
         bail!("{} already exists", secret.display());
     }
+    if let Some(d) = secret.parent().filter(|d| !d.as_os_str().is_empty()) {
+        fs::create_dir_all(d).ctx(|| format!("create {}", d.display()))?;
+    }
     let o = openssl(&[
         "genpkey".as_ref(),
         "-algorithm".as_ref(),

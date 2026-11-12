@@ -211,6 +211,9 @@ pub fn check_updates(cfg: &Config, ui: &Ui, offline: bool) -> Result<Vec<String>
     };
     let mut out = vec![];
     for i in LocalDb::open(&cfg.dbpath).list()? {
+        if cfg.hold.contains(&i.info.name) {
+            continue;
+        }
         if let Some(e) = sync.find(&i.info.name) {
             if vercmp(&e.info.version, &i.info.version) == std::cmp::Ordering::Greater {
                 out.push(format!(

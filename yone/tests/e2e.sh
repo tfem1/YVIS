@@ -159,7 +159,7 @@ fails env YONE_TEST_FAIL_AFTER=3 "${Y[@]}" upgrade
 grep -q "admin" "$ROOT/etc/foo.conf" && grep -q "new=1" "$ROOT/etc/foo.conf.yonenew" && ok "modified config kept, new one saved as .yonenew"
 [ ! -e "$ROOT/usr/share/foo/legacy.txt" ] && ok "files dropped by the new version are removed"
 "${Y[@]}" verify >/dev/null && ok "verify after upgrade"
-"${Y[@]}" upgrade 2>&1 | grep -q "up to date" && ok "second upgrade is a no-op"
+grep -q "up to date" <<<"$("${Y[@]}" upgrade 2>&1)" && ok "second upgrade is a no-op"
 rc=0; "${Y[@]}" check-updates >/dev/null 2>&1 || rc=$?
 [ "$rc" = 2 ] && ok "check-updates exits 2 when nothing is to update"
 rm "$ROOT/etc/foo.conf.yonenew"
@@ -168,6 +168,13 @@ build r/foo; rm repo/foo-1.1-1-x86_64.yon*; publish
 "${Y[@]}" update >/dev/null && "${Y[@]}" upgrade >/dev/null 2>&1
 grep -q "admin" "$ROOT/etc/foo.conf" && grep -q "new=2" "$ROOT/etc/foo.conf.yonenew" \
   && ok "admin changes survive a second upgrade" || die "second upgrade overwrote the modified config"
+sed -i 's/^\[options\]$/[options]\nhold = foo/' "$ROOT/etc/yone/yone.conf"
+foo_recipe 1.3 'setting=1\nnew=3\n'
+build r/foo; publish; "${Y[@]}" update >/dev/null
+grep -q "foo: held (1.2-1 -> 1.3-1 available" <<<"$("${Y[@]}" upgrade 2>&1)" && [ "$("$ROOT/usr/bin/foo")" = "foo 1.2" ] \
+  && ok "a held package is not upgraded"
+rc=0; "${Y[@]}" check-updates >/dev/null 2>&1 || rc=$?; [ "$rc" = 2 ] && ok "  ...nor listed by check-updates"
+sed -i '/^hold = foo$/d' "$ROOT/etc/yone/yone.conf"; rm -f repo/foo-1.3-1-*; publish; "${Y[@]}" update >/dev/null
 
 echo "== removal"
 fails "${Y[@]}" remove libfoo; grep -q "foo requires" last.log && ok "removing a needed dependency is refused"
@@ -287,18 +294,105 @@ echo "== crash recovery (power cut simulated with an abrupt exit)"
 leftovers() { find "$ROOT" -name '*.yone-old' -o -name '*.yone-new' | grep -q .; }
 fails env YONE_TEST_CRASH=staged "${Y[@]}" install multi
 fails "${Y[@]}" install --reinstall stray; grep -q "yone recover" last.log && ok "a crashed transaction blocks new ones until recovered"
-"${Y[@]}" recover 2>&1 | grep -q "rolled back" && ok "crash before the commit point: recover rolls back"
+grep -q "rolled back" <<<"$("${Y[@]}" recover 2>&1)" && ok "crash before the commit point: recover rolls back"
 [ -z "$("${Y[@]}" list | grep '^multi' || true)" ] && [ ! -e "$ROOT/usr/share/multi" ] && ! leftovers \
   && "${Y[@]}" verify >/dev/null && ok "  ...nothing of multi left, database and files agree"
 fails env YONE_TEST_CRASH=committed "${Y[@]}" install multi
-"${Y[@]}" recover 2>&1 | grep -q "completed" && ok "crash after the commit point: recover rolls forward"
+grep -q "completed" <<<"$("${Y[@]}" recover 2>&1)" && ok "crash after the commit point: recover rolls forward"
 "${Y[@]}" list | grep -q '^multi' && [ -e "$ROOT/usr/share/multi/f40" ] && ! leftovers \
   && "${Y[@]}" verify >/dev/null && ok "  ...multi fully installed, database and files agree"
 fails env YONE_TEST_CRASH=committed "${Y[@]}" remove multi
 "${Y[@]}" recover >/dev/null
 [ -z "$("${Y[@]}" list | grep '^multi' || true)" ] && [ ! -e "$ROOT/usr/share/multi" ] && ! leftovers \
   && ok "crash after committing a removal: recover completes it"
-"${Y[@]}" recover 2>&1 | grep -q "no interrupted" && ok "recover on a clean system is a no-op"
+grep -q "no interrupted" <<<"$("${Y[@]}" recover 2>&1)" && ok "recover on a clean system is a no-op"
+
+echo "== meta packages, queries, log"
+recipe r/meta <<'EOF'
+name = meta
+version = 1.0
+desc = A profile: only dependencies
+depends = multi
+@package
+true
+EOF
+out=$("$YONE" build r/meta --out "$T/repo" --sign "$KEY" --compress "$COMP" --color never 2>&1)
+grep -q "meta package" <<<"$out" && ok "an empty package builds as a meta package"
+publish; "${Y[@]}" update >/dev/null
+"${Y[@]}" install meta >/dev/null && "${Y[@]}" list | grep -q '^multi' && [ ! -s "$ROOT/var/lib/yone/local/meta/files" ] \
+  && ok "installing it pulls its dependencies, it owns no file"
+[ "$("${Y[@]}" owns /usr/share/multi/f7 2>/dev/null)" = "/usr/share/multi/f7 is owned by multi 1.0-1" ] && ok "owns: file"
+"${Y[@]}" owns usr/share/multi 2>/dev/null | grep -q "owned by multi" && ok "owns: directory"
+rc=0; "${Y[@]}" owns /etc/nothing >/dev/null 2>&1 || rc=$?; [ "$rc" = 1 ] && ok "owns: exit 1 for an unowned path"
+[ "$("${Y[@]}" files multi | grep -c '^multi /usr/share/multi/f')" = 40 ] && ok "files lists a package's files"
+"${Y[@]}" remove meta >/dev/null && "${Y[@]}" autoremove >/dev/null && [ -z "$("${Y[@]}" list | grep '^multi' || true)" ] \
+  && ok "removing the meta package lets autoremove take its dependencies"
+grep -q "\] installed meta (1.0-1)" "$ROOT/var/log/yone.log" && grep -q "\] removed multi (1.0-1)" "$ROOT/var/log/yone.log" \
+  && grep -qE '^\[20[0-9]{2}-[0-9]{2}-[0-9]{2} [0-9:]{8}\] ' "$ROOT/var/log/yone.log" && ok "transactions are logged in /var/log/yone.log"
+
+echo "== Ctrl-C"
+fails env YONE_TEST_SIGINT_AFTER=10 "${Y[@]}" install multi
+grep -q "interrupted" last.log && grep -q "rolling back" last.log && [ ! -e "$ROOT/var/lib/yone/journal" ] \
+  && [ ! -e "$ROOT/usr/share/multi" ] && ok "Ctrl-C during installation rolls back cleanly, no journal left"
+grep -q "transaction rolled back: interrupted" "$ROOT/var/log/yone.log" && ok "  ...and the rollback is logged"
+
+echo "== build helpers"
+"$YONE" keygen "$T/newdir/sub/key" >/dev/null && [ -s "$T/newdir/sub/key.key" ] && ok "keygen creates the key's directory"
+recipe r/needs <<'EOF'
+name = needs
+version = 1.0
+makedepends = nosuchtool
+@package
+install -Dm644 /dev/null "$PKGDIR/usr/share/needs"
+EOF
+out=$("$YONE" --root "$ROOT" build r/needs --out "$T/repo" --compress "$COMP" --color never 2>&1)
+grep -q "makedepends not installed: nosuchtool" <<<"$out" && ok "build warns about missing makedepends"
+rm -f "$T"/repo/needs-*
+
+echo "== hooks (run in the root through chroot)"
+if [ "$(id -u)" = 0 ] && file -L "$(command -v busybox 2>/dev/null || echo /nonexistent)" 2>/dev/null | grep -q 'statically linked'; then
+  cp "$(command -v busybox)" "$T/busybox"
+  recipe r/shell <<EOF
+name = shell
+version = 1.0
+source = busybox::$T/busybox
+sha256 = $(sha "$T/busybox")
+@package
+install -Dm755 busybox "\$PKGDIR/bin/busybox"
+ln -s busybox "\$PKGDIR/bin/sh"
+EOF
+  recipe r/stamper <<'EOF'
+name = stamper
+version = 1.0
+@package
+mkdir -p "$PKGDIR/usr/share/yone/hooks" "$PKGDIR/usr/share/stamp"
+cat > "$PKGDIR/usr/share/yone/hooks/50-stamp.hook" <<'HOOK'
+desc = Counting stamps
+paths = usr/share/stamp/
+run = /bin/busybox sh -c "/bin/busybox ls /usr/share/stamp | /bin/busybox wc -l > /var/stamps"
+HOOK
+touch "$PKGDIR/usr/share/stamp/a"
+EOF
+  recipe r/stamp2 <<'EOF'
+name = stamp2
+version = 1.0
+@package
+install -Dm644 /dev/null "$PKGDIR/usr/share/stamp/b"
+EOF
+  for p in shell stamper stamp2; do build r/$p; done; publish; "${Y[@]}" update >/dev/null
+  "${Y[@]}" install shell stamper > "$T/hook.log" 2>&1
+  [ "$(tr -d ' ' < "$ROOT/var/stamps")" = 1 ] && grep -q "hook: Counting stamps" "$T/hook.log" \
+    && ok "a hook shipped by a package runs when its paths change, inside the root"
+  ! grep -q "ldconfig" "$T/hook.log" && ok "a hook whose program is not in the root is skipped"
+  "${Y[@]}" install stamp2 >/dev/null 2>&1; [ "$(tr -d ' ' < "$ROOT/var/stamps")" = 2 ] && ok "another package's files trigger it"
+  "${Y[@]}" remove stamp2 >/dev/null 2>&1; [ "$(tr -d ' ' < "$ROOT/var/stamps")" = 1 ] && ok "removals trigger it too"
+  mkdir -p "$ROOT/etc/yone/hooks" && : > "$ROOT/etc/yone/hooks/50-stamp.hook"
+  "${Y[@]}" install stamp2 >/dev/null 2>&1; [ "$(tr -d ' ' < "$ROOT/var/stamps")" = 1 ] && ok "an empty /etc/yone/hooks file disables it"
+  rm "$ROOT/etc/yone/hooks/50-stamp.hook"
+  "${Y[@]}" remove stamp2 stamper shell >/dev/null 2>&1
+else
+  echo "  - skipped (needs root and a static busybox)"; n=$((n + 5))
+fi
 
 echo "== locking"
 exec 9>"$ROOT/var/lib/yone/db.lck"; flock -n 9

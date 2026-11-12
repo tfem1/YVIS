@@ -98,6 +98,9 @@ COSMIC, gaming stack (Steam, Gamescope, MangoHud…), Flatpak applications.
 /var/lib/yone/local/.staged/ database changes waiting for the commit point
 /var/lib/yone/db.lck         flock(2) lock (released by the kernel if yone dies)
 /var/cache/yone/pkg/         downloaded packages (offline installs reuse them)
+/var/log/yone.log            installs, upgrades, removals, rollbacks, hooks
+/usr/share/yone/hooks/       hooks shipped by packages
+/etc/yone/hooks/             administrator's hooks (same name overrides; empty file disables)
 ```
 
 ### 3.2 Package format (`.yon`)
@@ -105,7 +108,11 @@ COSMIC, gaming stack (Steam, Gamescope, MangoHud…), Flatpak applications.
 A tar stream compressed with zstd (default) or xz. The first entry is
 `.YONEINFO` (`key = value` metadata: name, version `ver-rel`, depends,
 provides, conflicts, backup, isize…). Everything else is the file tree relative
-to `/`. Ownership is always root:root.
+to `/`. Ownership is always root:root (other owners are set at install time by
+`systemd-tmpfiles`/`systemd-sysusers` hooks, since user ids are only known
+then). File capabilities (`setcap`) are kept as pax `SCHILY.xattr` records;
+no other extended attribute is honoured. A package without files is a meta
+package (a desktop profile, for instance).
 
 ### 3.3 Trust chain
 
@@ -153,6 +160,22 @@ Configuration files listed in `backup` are never overwritten when the
 administrator changed them: the new version lands as `<file>.yonenew`; on
 removal a modified one is kept as `<file>.yonesave`.
 
+Paths are resolved inside the root like a chroot would (`lib/x` is
+`usr/lib/x` when `lib -> usr/lib`, absolute links stay inside the root), so
+one file always has one owner whatever spelling a package uses. A path that
+a symlink installed in the same transaction would redirect is refused.
+
+Ctrl-C or SIGTERM before the commit point rolls the transaction back; after
+it, the transaction finishes. Packages listed in `hold =` are never upgraded.
+
+**Hooks** run after a committed transaction, once each, when a changed file
+matches their `paths` (`desc`, `paths`, `on = install upgrade remove`,
+`run`); inside the root through chroot when `--root` is used. Packages ship
+their own (GSettings schemas, icon caches, `depmod`, `systemd-sysusers`…);
+`ldconfig` is built in. A failing hook is reported, never rolled back.
+
+Queries: `yone owns PATH`, `yone files PKG`, `yone check-updates`.
+
 `--root DIR` makes every operation work on another tree; it is how the build
 system populates the root filesystem of the ISO.
 
@@ -177,7 +200,11 @@ shipped next to the recipe). Scripts run with `bash -eo pipefail` and get
 
 ### 3.6 Known limitations (v0.1)
 
-- No package-provided install scripts yet; only built-in triggers.
+- No arbitrary install scripts by design: declarative hooks only.
+- A conflicting package is refused rather than offered for replacement
+  (no `replaces`); optional dependencies are not modelled yet.
+- A path that changes type between versions (directory ↔ file/symlink) is
+  reported as a conflict instead of being converted.
 - File data is flushed once per transaction (`syncfs` before the commit
   point), not per file: a power cut *before* the commit point is rolled back,
   so a half-written new file is never kept, but an original renamed aside
