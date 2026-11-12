@@ -21,21 +21,22 @@ Status legend: ✅ done and tested · 🔨 in progress · ⏳ not started
 |---|---|---|
 | 9 | Mesa, Wayland, PipeWire, NetworkManager | ⏳ |
 | 10 | KDE Plasma (Wayland) + SDDM with YVIS theme | ⏳ |
-| 11 | Flatpak + Flathub + portals | ⏳ |
+| 10b | Hyprland + Quickshell + user dotfiles (`yvis-hyprland-config`), selectable in SDDM | ⏳ |
+| 11 | Flatpak + Flathub preconfigured + portals (KDE and Hyprland) | ⏳ |
 | 12 | Logo approved and branding integrated (Fastfetch, SDDM, boot, KDE) | 🔨 Fastfetch ASCII supplied by the user |
-| 13 | Live ISO ≤ 2 GiB, measured in CI | ⏳ |
+| 13 | Live ISO ≤ 2 GiB, measured in CI, boot menu: default / NVIDIA / safe graphics | ⏳ |
 
 ## v0.3.0 — "installable"
 
 | # | Milestone | Status |
 |---|---|---|
-| 14 | YVIS Installer (graphical, Minimal/Desktop/Gaming profiles) | ⏳ |
+| 14 | YVIS Installer (graphical): KDE / Hyprland / both, NVIDIA option, Minimal/Desktop/Gaming profiles | ⏳ |
 | 15 | Automated install + reboot test in QEMU (UEFI/OVMF) | ⏳ |
-| 16 | AMD GPU stack; NVIDIA proprietary option with module signing | ⏳ |
+| 16 | AMD GPU stack; NVIDIA open kernel modules (`nvidia.sfs` boot entry) with module signing | ⏳ |
 
 ## v0.4.0+ 
 
-Hyprland and COSMIC packages, gaming profile (Steam, Proton, Gamescope,
+COSMIC packages, gaming profile (Steam, Proton, Gamescope,
 GameMode, MangoHud), testing/stable channels, Secure Boot, upgrade tests.
 
 ## v1.0.0

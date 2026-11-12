@@ -19,16 +19,48 @@
 |---|---|---|
 | Base | LFS (systemd edition) + selected BLFS | Plasma, SDDM, logind, Flatpak portals and PipeWire integration all assume systemd |
 | Init / session | systemd, systemd-logind | required by SDDM Wayland sessions and portals |
-| Kernel | upstream LTS, YVIS config | AMDGPU built in, NVIDIA via out-of-tree module package |
+| Kernel | upstream LTS, YVIS config | AMDGPU built in, NVIDIA open kernel modules as a separate package |
 | Boot (installed) | systemd-boot on UEFI | ships with systemd, simple, signable |
 | Boot (ISO) | GRUB EFI image + El Torito, `xorriso` | UEFI x86_64 target; BIOS is a non-goal for v0.x |
 | Root on ISO | SquashFS, zstd level 19, overlayfs for the live session | best size/speed trade-off for a 2 GiB budget |
-| Graphics | Wayland only; Mesa (radeonsi, RADV); NVIDIA proprietary optional | per project brief |
-| Desktops | KDE Plasma (default, on ISO); Hyprland, COSMIC installable via Yone | keeps the ISO under budget |
+| Graphics | Wayland only; Mesa (radeonsi, RADV, nouveau/NVK); NVIDIA open kernel modules + userspace, chosen at boot | per project brief |
+| Desktops | KDE Plasma **and** Hyprland on the ISO, chosen in SDDM (live) and in the installer; COSMIC installable via Yone | per project brief; both share Qt 6 (Plasma, Quickshell), so Hyprland costs little |
 | Display manager | SDDM with an original YVIS theme | per project brief |
 | Audio | PipeWire + WirePlumber | Plasma/Hyprland/COSMIC and Steam expect it |
-| Apps | native Yone packages + Flatpak/Flathub | sandboxed third-party apps |
+| Apps | native Yone packages + Flatpak with Flathub preconfigured (Discover backend on KDE); no Flatpak app preinstalled | sandboxed third-party apps; runtimes would not fit in 2 GiB |
 | Arch | x86_64 only | |
+
+### Live ISO boot menu (GRUB)
+
+| Entry | What it does |
+|---|---|
+| YVIS | open drivers: Mesa (AMD, Intel, nouveau/NVK); `nvidia*` modules never loaded |
+| YVIS — NVIDIA | `yvis.nvidia=1`: overlays `nvidia.sfs`, blacklists `nouveau`, loads `nvidia`, `nvidia_modeset`, `nvidia_drm modeset=1 fbdev=1` |
+| YVIS — safe graphics | `nomodeset`, software rendering, for broken GPUs |
+| Boot from the first disk / UEFI firmware settings | |
+
+The NVIDIA driver is the **open kernel module** flavour (GTX 16xx / RTX 20xx
+and newer; NVIDIA's recommended driver for those GPUs). Older NVIDIA cards
+use the default entry (nouveau). It lives in its own SquashFS layer
+(`nvidia.sfs`) mounted only by the NVIDIA entry, so the default session never
+sees it. The installer carries the choice over: NVIDIA packages are installed
+on the target only when the live session was booted with `yvis.nvidia=1` or
+the user ticks the option. Kernel modules are built against the exact ISO
+kernel and signed with the YVIS module key.
+
+### Desktop choice
+
+- **Live session:** SDDM (YVIS theme) lists *Plasma (Wayland)* and
+  *Hyprland*; Plasma is the default. Autologin goes to Plasma.
+- **Installer:** asks *KDE Plasma*, *Hyprland* or *both*; only what is chosen
+  is copied to the disk (the rest is removed from the target with Yone).
+- **Hyprland configuration:** the user's dotfiles
+  ([tfem1/dotfiles](https://github.com/tfem1/dotfiles): Hyprland config,
+  Quickshell shell, themes, SDDM themes) are packaged as `yvis-hyprland-config`
+  and installed into `/etc/skel/.config` for new users. Dependencies come from
+  its `install/packages.tsv` (`core` and `wm-hyprland` profiles); a `yvis`
+  column will map them to Yone package names, and its update counter
+  (`pacman-contrib` on Arch) will use `yone` instead.
 
 ### ISO size budget (2 GiB hard limit)
 
@@ -41,12 +73,17 @@ the ISO workflow and the release is blocked if it exceeds 2 GiB.
 | LFS base + systemd + networking | 200 MiB |
 | Mesa, Vulkan, Wayland, PipeWire | 150 MiB |
 | KDE Plasma (minimal) + SDDM + Qt 6 | 700 MiB |
+| Hyprland, Quickshell, dotfiles, kitty | 60 MiB |
+| NVIDIA open modules + userspace (`nvidia.sfs`) | 250 MiB |
 | Flatpak, portals, installer, branding | 100 MiB |
-| Headroom | ~600 MiB |
+| Headroom | ~290 MiB |
+
+The firmware subset is the main lever: only GPU, Wi-Fi, Bluetooth and
+storage firmware for current hardware ships on the ISO; the full
+`linux-firmware` package is installed on the target from the network.
 
 Kept **off** the ISO and installed by the installer from the network:
-Hyprland, COSMIC, gaming stack (Steam, Gamescope, MangoHud…), NVIDIA
-proprietary driver.
+COSMIC, gaming stack (Steam, Gamescope, MangoHud…), Flatpak applications.
 
 ## 3. Yone
 
