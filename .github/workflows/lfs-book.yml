@@ -1,0 +1,49 @@
+# Regenerates the inputs of the LFS build for the pinned release (lfs/config):
+# the book's commands (lfs/book/), its MD5 list and the SHA-256 lock of every
+# source. Nothing is committed automatically: download the artifact, review the
+# diff, commit it. Run it again only when lfs/config changes.
+name: lfs-book
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  book:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Book commands and MD5 list
+        run: |
+          . lfs/config
+          curl -fsSL "$LFS_BOOK/md5sums" -o lfs/md5sums
+          rm -rf lfs/book
+          python3 -I lfs/extract.py --book "$LFS_BOOK" --sources lfs/wget-list --out lfs/book
+          {
+            echo "## LFS $LFS_VERSION"
+            echo '```'
+            echo "sections: $(grep -vc '^#' lfs/book/sections.tsv)"
+            echo "skipped blocks:"; grep -rhoE 'SKIPPED \([^)]*\)' lfs/book | sort | uniq -c
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Download and verify every source
+        run: |
+          bash lfs/fetch-sources.sh "$RUNNER_TEMP/sources"
+          cp "$RUNNER_TEMP/sources/sources.sha256" lfs/sources.sha256
+
+      - uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/sources
+          key: lfs-sources-${{ hashFiles('lfs/wget-list') }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lfs-book
+          path: |
+            lfs/book
+            lfs/md5sums
+            lfs/sources.sha256
