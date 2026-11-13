@@ -123,9 +123,31 @@ artifact of an `lfs` run:
   modules to load, and the network to get its address by DHCP.
 
 Left to the installer, because they depend on the target disk: `/etc/fstab`
-(10.2) and GRUB (10.4). Not done yet: an initramfs. The boot test needs
-none (ext4 and virtio-blk are built in), a real disk does (NVMe, AHCI and
-USB storage are modules).
+(10.2) and GRUB (10.4).
+
+### Initramfs and live ISO
+
+The book boots without an initramfs, the reader's disk driver built into
+the kernel. YVIS's drivers are modules, so the kernel first runs
+`system/initramfs/init`: udev loads the drivers of the storage present,
+then the script mounts either the installed root (`root=UUID=…`) or the
+live medium (`yvis.live=<label>`: `/yvis/rootfs.sfs` read-only under a
+writable layer kept in memory), and hands over to systemd. If something is
+missing it says what, lists the storage it found and opens a shell.
+`yvis-mkinitramfs` builds the image from the installed system's own
+programs and refuses to write one in which udev cannot load modules.
+
+The `yvis-iso` workflow builds the ISO from a `yvis-base` artifact
+(`iso/build.sh`): the system as a zstd squashfs, the kernel, the initramfs,
+and GRUB for BIOS and UEFI made by the system's own GRUB. The host only
+lends tools (mksquashfs, xorriso, mtools). `iso/boot-test.sh` then boots
+the ISO itself, through its menu, as a disc and as a USB stick with both
+firmwares; the test unit is handed to the virtual machine as systemd
+credentials, so the ISO that is tested is the one that is published.
+
+Not covered: real hardware. No firmware is installed yet, so on a real PC
+Wi-Fi and some graphics cards will not work; the console uses the
+firmware's display.
 
 The `lfs-debug` workflow reruns one section on a saved `$LFS` the old way
 (on sudo's terminal) under `strace` and reports what stopped; it exists to

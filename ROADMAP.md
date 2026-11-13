@@ -18,8 +18,10 @@ Status legend: ✅ done and tested · 🔨 in progress · ⏳ not started
 | 6b | Security patches from the LFS advisories for 13.1 | ⏳ |
 | 6c | Base system rebuilt as `.yon` packages (see "Packaging the base" below) | ⏳ |
 | 7 | System configuration (chapter 9) and kernel 7.1.8 (chapter 10), `yvis-base` workflow | ✅ run 43388175924 (kernel built in 2 h 02), checks and QEMU boot in run 43425563873 |
-| 7a | Initramfs (the kernel's storage and file system drivers are modules), kernel build tree for out-of-tree modules | ⏳ |
-| 8 | Console ISO (UEFI) booting in QEMU, Yone inside | ⏳ |
+| 7a | Initramfs (`system/initramfs/`: installed root or live medium, rescue shell) | ✅ |
+| 7b | Kernel build tree for out-of-tree modules (NVIDIA) | ⏳ |
+| 8 | Console live ISO, BIOS and UEFI, disc and USB stick, booted in QEMU by `iso/boot-test.sh` | ✅ run 43478718718: 553 MiB, the four boots pass |
+| 8a | Yone inside the ISO; first boot on real hardware | ⏳ |
 
 ### Packaging the base (6c)
 
