@@ -1,0 +1,10 @@
+# Edits of the book's commands: <section id><TAB><sed -E expression>.
+# An expression that changes nothing stops the build (the book changed).
+#
+# YVIS is installed on other machines than the one that builds it. The book
+# (8.2.3, 8.23, 8.51) requires generic builds of GMP and Libffi in that
+# case: by default both are optimised for the build machine's CPU and
+# crash with "Illegal instruction" elsewhere. x86-64 is the baseline every
+# 64-bit PC implements.
+ch-system-gmp	s|--docdir=/usr/share/doc/gmp-[0-9.]+|& --host=none-linux-gnu|
+ch-system-libffi	s|--with-gcc-arch=native|--with-gcc-arch=x86-64|

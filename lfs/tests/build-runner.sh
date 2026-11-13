@@ -7,8 +7,8 @@ set -euo pipefail
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 [ "$(id -u)" = 0 ] || { echo "needs root"; exit 77; }
 T=$(mktemp -d); chmod 755 "$T"
-cp "$HERE/skip" "$T/skip.orig"
-trap 'cp "$T/skip.orig" "$HERE/skip"; rm -rf "$T"; userdel -r lfs >/dev/null 2>&1 || true' EXIT
+cp "$HERE/skip" "$T/skip.orig"; cp "$HERE/edits" "$T/edits.orig"; cp "$HERE/tests-enabled" "$T/tests.orig"
+trap 'cp "$T/skip.orig" "$HERE/skip"; cp "$T/edits.orig" "$HERE/edits"; cp "$T/tests.orig" "$HERE/tests-enabled"; rm -rf "$T"; userdel -r lfs >/dev/null 2>&1 || true' EXIT
 export LFS=$T/lfs YVIS_LFS_BOOK=$T/book
 n=0; ok() { n=$((n + 1)); echo "  ✓ $*"; }; die() { echo "  ✗ $*"; exit 1; }
 
@@ -41,6 +41,12 @@ echo "must be skipped" > "$LFS/tools/block2.out"
 # --- block 3
 echo kept > "$LFS/tools/block3.out"
 cat > /dev/null   # reads stdin, as Expect's pty check does
+
+# --- block 4: SKIPPED (test suite)
+# echo tested > "$LFS/tools/tested.out"
+
+# --- block 5: SKIPPED (test suite)
+# echo "must stay skipped" > "$LFS/tools/block5.out"
 SH
 echo 'false' > "$YVIS_LFS_BOOK/ch05/003-ch-tools-boom.sh"
 cat > "$YVIS_LFS_BOOK/ch05/000-ch-tools-badcd.sh" <<'SH'
@@ -58,6 +64,7 @@ SH
 
 bash "$HERE/build.sh" host >/dev/null 2>&1 || die "host step failed"
 echo "ch-tools-env#2" >> "$HERE/skip"
+echo "ch-tools-env#4" >> "$HERE/tests-enabled"
 cp "$T/hello-1.0.tar.gz" "$LFS/sources/"
 [ -L "$LFS/bin" ] && id lfs >/dev/null && ok "host: layout and lfs user"
 
@@ -78,6 +85,7 @@ read -r who tgt lc mf < "$LFS/tools/env.out"
 [ "$(stat -c %U "$LFS/tools/hello.out")" = lfs ] && ok "files built in chapter 5 belong to lfs"
 grep -q "ch05 003 ch-tools-boom" "$T/log" && ok "a section reading stdin does not swallow the following ones"
 [ ! -e "$LFS/tools/block2.out" ] && [ "$(cat "$LFS/tools/block3.out")" = kept ] && ok "<id>#<block> in lfs/skip drops only that block"
+[ "$(cat "$LFS/tools/tested.out")" = tested ] && [ ! -e "$LFS/tools/block5.out" ] && ok "lfs/tests-enabled runs that test block, the others stay skipped"
 
 echo 'echo replaced > "$LFS/tools/boom.out"' > "$T/override.sh"
 mkdir -p "$HERE/overrides"; cp "$T/override.sh" "$HERE/overrides/ch-tools-boom.sh"
@@ -97,9 +105,21 @@ grep -q "ch-tools-hang: no end after 2s, killed" "$T/log" && [ $((SECONDS - star
 [ "$(cat "$LFS/tools/boom.out")" = replaced ] && ok "lfs/overrides/<id>.sh replaces the book's commands"
 [ ! -e "$LFS/tools/hello.out" ] && ok "finished sections are not run again (resume)"
 
+printf 'ch-tools-changingowner\ts|owned >|owned-and-edited >|\n' >> "$HERE/edits"
 script -qec "bash '$HERE/build.sh' run ch07" /dev/null >/dev/null 2>&1 || die "ch07 failed"
+[ "$(cat "$LFS/owner.out")" = owned-and-edited ] && ok "lfs/edits changes a section's commands"
+printf 'ch-tools-changingowner\ts|no such text|x|\n' >> "$HERE/edits"
+rm "$LFS/.yvis/done/ch-tools-changingowner"
+if bash "$HERE/build.sh" run ch07 >"$T/log" 2>&1; then die "a stale edit must stop the run"; fi
+grep -q "changes nothing in ch-tools-changingowner" "$T/log" && ok "an edit that no longer matches the book stops the run"
+sed -i '$d' "$HERE/edits"
+echo "ch-tools-changingowner#1" >> "$HERE/tests-enabled"
+if bash "$HERE/build.sh" run ch07 >"$T/log" 2>&1; then die "a stale tests-enabled entry must stop the run"; fi
+grep -q "ch-tools-changingowner#1 is not a skipped test block" "$T/log" && ok "a tests-enabled entry that is not a test block stops the run"
+sed -i '$d' "$HERE/tests-enabled"
+rm -f "$LFS/owner.out"; bash "$HERE/build.sh" run ch07 >/dev/null 2>&1 || die "ch07 failed"
 [ "$(cat "$LFS/tty.out")" = none ] && ok "a section has no controlling terminal, even when the runner has one"
-[ "$(cat "$LFS/owner.out")" = owned ] && [ "$(stat -c %U "$LFS/tools/env.out")" = root ] && ok "7.2 runs as root on the host"
+[ "$(stat -c %U "$LFS/tools/env.out")" = root ] && ok "7.2 runs as root on the host"
 
 want=$(grep -cE '(^|[;&|] *)ok "' "$0"); [ "$n" -eq "$want" ] || die "only $n of $want checks passed"
 echo "all $n checks passed"

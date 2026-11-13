@@ -1,0 +1,4 @@
+# 8.23: "Ensure that at least 199 tests in the test suite passed."
+passed=$(cat $(find . -name '*.log') | grep -c '^PASS')
+echo "GMP: $passed tests passed"
+[ "$passed" -ge 199 ]

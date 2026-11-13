@@ -8,7 +8,8 @@ ch-system-glibc#11
 ch-system-glibc#12
 ch-system-glibc#13
 # 8.23 GMP: block 1 is the 32-bit example (`ABI=32 ./configure ...`),
-# block 6 counts test results (the tests are not run).
+# block 6 only prints the number of passed tests: lfs/overrides/ch-system-gmp.post
+# checks it against the book's minimum instead.
 ch-system-gmp#1
 ch-system-gmp#6
 # Test suites the extractor did not recognise (fixed in extract.py since).

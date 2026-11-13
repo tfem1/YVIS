@@ -1,9 +1,10 @@
 # Builds the LFS base of YVIS from lfs/book/ (the pinned book's own commands).
 #   toolchain: chapters 5-7 (cross toolchain, temporary tools, chroot tools)
 #   system:    chapter 8 (the final base system)
-# Each job hands $LFS to the next one as a zstd archive. Test suites are not
-# run here (they would multiply the build time); see lfs/book/*/ for the
-# skipped blocks.
+# Each job hands $LFS to the next one as a zstd archive. Only the test suites
+# listed in lfs/tests-enabled are run (the others would multiply the build
+# time); see lfs/book/*/ for the skipped blocks. Each section's output is in
+# the lfs-system-logs artifact; the console shows the end of a failed one.
 name: lfs
 
 on:

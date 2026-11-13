@@ -1,0 +1,12 @@
+# Test suites that are run during the build: <section id>#<block>, a block the
+# extractor marked "SKIPPED (test suite)". The others are skipped to keep the
+# build short; these are the ones the book calls critical and that are quick.
+# (Glibc, Binutils and GCC are critical too, but take hours: a separate
+# verification run, see ROADMAP.md.)
+#
+# 8.23 GMP: "The test suite for GMP in this section is considered critical.
+# Do not skip it under any circumstances."
+ch-system-gmp#5
+# 8.24 MPFR, 8.25 MPC: same status in the book.
+ch-system-mpfr#3
+ch-system-mpc#3
