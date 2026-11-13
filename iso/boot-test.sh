@@ -25,6 +25,7 @@ for _ in $(seq 1 150); do
   state=$(systemctl is-system-running)
   case $state in starting | initializing) sleep 2 ;; *) break ;; esac
 done
+echo   # UEFI firmware and GRUB write to this port too, without ending their last line
 echo "YVIS-TEST state=$state"
 echo "YVIS-TEST failed=$(systemctl --failed --no-legend --plain | awk '{ print $1 }' | tr '\n' ' ')"
 echo "YVIS-TEST kernel=$(uname -r)"

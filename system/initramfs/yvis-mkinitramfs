@@ -179,7 +179,7 @@ def build(release, output, share=SHARE, sysroot="/"):
             place(os.path.realpath(dep), dep)
 
     # udev: the daemon is udevadm under another name
-    os.makedirs(os.path.join(root, "usr/lib/systemd"))
+    os.makedirs(os.path.join(root, "usr/lib/systemd"), exist_ok=True)
     os.symlink("../../bin/udevadm", os.path.join(root, "usr/lib/systemd/systemd-udevd"))
     for name in UDEV_HELPERS:
         path = f"/usr/lib/udev/{name}"
