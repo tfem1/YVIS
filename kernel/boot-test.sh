@@ -2,6 +2,7 @@
 # Boots the built system in QEMU and checks what only a running system can
 # show: the kernel starts, systemd reaches its target with no failed unit,
 # modules load (compressed, signed), the wired network gets its address.
+# The report is read back from the disk image after the machine powers off.
 #
 #   sudo kernel/boot-test.sh [work directory]      needs $LFS, qemu-system-x86
 #
@@ -29,11 +30,12 @@ tar -C "$LFS" --one-file-system --numeric-owner --xattrs --xattrs-include='*' --
   tar -C "$mnt" --numeric-owner --xattrs --xattrs-include='*' --acls -xpf -
 
 # The test: only in the image. Type=simple so that it does not hold the
-# boot back; it waits for the boot to finish, reports on the serial line
-# and powers the machine off.
+# boot back; it waits for the boot to finish, writes its report to a file
+# of the image and powers the machine off. (Not to the serial line: the
+# login service started there resets it, and what follows is lost.)
 cat > "$mnt/usr/local/sbin/yvis-boot-test" <<'TEST'
 #!/bin/bash
-exec > /dev/ttyS0 2>&1
+exec > /var/log/yvis-boot-test 2>&1
 for _ in $(seq 1 150); do
   state=$(systemctl is-system-running)
   case $state in starting | initializing) sleep 2 ;; *) break ;; esac
@@ -56,6 +58,7 @@ echo "YVIS-TEST dns=$(resolvectl dns 2> /dev/null | grep -cE '([0-9]+\.){3}[0-9]
 echo "YVIS-TEST cpu=$(sed -n 's/^model name\s*: //p' /proc/cpuinfo | head -n 1)"
 dmesg -l emerg,alert,crit,err | sed 's/^/YVIS-TEST dmesg: /' | head -n 40
 echo "YVIS-TEST-END"
+sync
 systemctl poweroff
 TEST
 chmod 755 "$mnt/usr/local/sbin/yvis-boot-test"
@@ -85,12 +88,19 @@ timeout "${YVIS_BOOT_TIMEOUT:-1500}" qemu-system-x86_64 \
   -netdev user,id=net0 -device virtio-net-pci,netdev=net0 \
   -display none -serial "file:$out" -no-reboot > /dev/null 2>&1 || rc=$?
 tr -d '\r' < "$out" > "$out.txt"
+report=$work/report.txt
+: > "$report"
+mount -o loop,ro "$img" "$mnt"
+cp "$mnt/var/log/yvis-boot-test" "$report" 2>/dev/null || true
+umount "$mnt"
 
 echo "==> result"
-grep -a '^YVIS-TEST' "$out.txt" || true
+cat "$report"
+echo "---- units systemd reported as failed on the console: $(grep -ac '^\[FAILED\]' "$out.txt")"
+grep -a '^\[FAILED\]' "$out.txt" | cut -c1-160 || true
 fail=0
 check() { # description, pattern
-  if grep -aqE "$2" "$out.txt"; then echo "  ok    $1"; else echo "  FAIL  $1"; fail=$((fail + 1)); fi
+  if grep -aqE "$2" "$report"; then echo "  ok    $1"; else echo "  FAIL  $1"; fail=$((fail + 1)); fi
 }
 check "the system booted and the test ran to its end" '^YVIS-TEST-END$'
 check "kernel $kver" "^YVIS-TEST kernel=$kver\$"
@@ -99,10 +109,11 @@ check "no failed unit" '^YVIS-TEST failed=$'
 check "it is YVIS, named yvis" '^YVIS-TEST os=yvis$'
 check "the machine got its own identifier at first boot" '^YVIS-TEST machine-id=33$'
 check "modules load (squashfs, overlay, loop, isofs, vfat, nvme, usb_storage, btrfs)" '^YVIS-TEST module btrfs=ok$'
-if grep -aq 'module .*=FAILED' "$out.txt"; then echo "  FAIL  a module did not load"; fail=$((fail + 1)); fi
+if grep -aq 'module .*=FAILED' "$report"; then echo "  FAIL  a module did not load"; fail=$((fail + 1)); fi
 check "the wired network got an IPv4 address by DHCP" '^YVIS-TEST ipv4=[a-z0-9]+:10\.0\.2\.'
 check "a DNS server was received" '^YVIS-TEST dns=[1-9]'
-check "QEMU powered off by itself" '^YVIS-TEST-END$'
+if grep -aq 'reboot: Power down' "$out.txt"; then echo "  ok    the system powered itself off"; else
+  echo "  FAIL  the system powered itself off"; fail=$((fail + 1)); fi
 [ "$rc" -eq 0 ] || { echo "  FAIL  QEMU ended with status $rc (124: time limit)"; fail=$((fail + 1)); }
 if [ "$fail" -ne 0 ]; then
   echo "---- last 80 lines of the serial console"
