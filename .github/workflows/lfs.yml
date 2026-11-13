@@ -124,8 +124,25 @@ jobs:
           sudo cp "$RUNNER_TEMP"/sources/* "$LFS/sources/"
           sudo ln -sf bash /bin/sh
 
+      # Checkpoint before Make: building it froze two runners (no artifact
+      # could be packed), and the sections before it take about an hour.
+      - name: Chapter 8 — up to libpipeline
+        run: sudo -E YVIS_UNTIL=ch-system-libpipeline bash lfs/build.sh run ch08
+
+      - name: Checkpoint
+        run: sudo -E bash lfs/build.sh pack "$RUNNER_TEMP/lfs-system.tar.zst"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lfs-system
+          path: ${{ runner.temp }}/lfs-system.tar.zst
+          compression-level: 0
+          retention-days: 14
+
       - name: Chapter 8 — base system
-        run: sudo -E bash lfs/build.sh run ch08
+        run: |
+          sudo rm -f "$RUNNER_TEMP/lfs-system.tar.zst"
+          sudo -E bash lfs/build.sh run ch08
 
       - name: Pack
         if: always()
@@ -140,3 +157,4 @@ jobs:
           path: ${{ runner.temp }}/lfs-system.tar.zst
           compression-level: 0
           retention-days: 14
+          overwrite: true

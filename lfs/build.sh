@@ -191,6 +191,8 @@ run() {
     while IFS=$'\t' read -r c order id tb _title; do
       [ "$c" = "$ch" ] || continue
       run_section "$c" "$order" "$id" "$tb"
+      # YVIS_UNTIL=<section id>: stop after it (CI checkpoints)
+      if [ "$id" = "${YVIS_UNTIL:-}" ]; then return 0; fi
     done < <(grep -v '^#' "$BOOK/sections.tsv")
   done
 }
