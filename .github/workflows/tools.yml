@@ -23,4 +23,4 @@ jobs:
       - name: GPU detection
         run: sh tools/tests/gpu-detect.sh
       - name: Shellcheck
-        run: shellcheck -S warning lfs/build.sh lfs/fetch-sources.sh tools/yvis-gpu-detect
+        run: shellcheck -S warning lfs/build.sh lfs/fetch-sources.sh lfs/verify.sh tools/yvis-gpu-detect

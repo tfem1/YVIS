@@ -121,5 +121,12 @@ rm -f "$LFS/owner.out"; bash "$HERE/build.sh" run ch07 >/dev/null 2>&1 || die "c
 [ "$(cat "$LFS/tty.out")" = none ] && ok "a section has no controlling terminal, even when the runner has one"
 [ "$(stat -c %U "$LFS/tools/env.out")" = root ] && ok "7.2 runs as root on the host"
 
+install -o 4242 -g 4343 -m 640 /dev/null "$LFS/owned-by-id"
+cp /bin/true "$LFS/capped" && setcap cap_net_raw+ep "$LFS/capped"
+bash "$HERE/build.sh" pack "$T/lfs.tar.zst" >/dev/null 2>&1 || die "pack failed"
+LFS=$T/lfs2 bash "$HERE/build.sh" unpack "$T/lfs.tar.zst" || die "unpack failed"
+[ "$(stat -c '%u:%g %a' "$T/lfs2/owned-by-id")" = "4242:4343 640" ] && getcap "$T/lfs2/capped" | grep -q cap_net_raw \
+  && [ ! -e "$T/lfs2/sources" ] && ok "pack/unpack keeps numeric owners and file capabilities, leaves the sources out"
+
 want=$(grep -cE '(^|[;&|] *)ok "' "$0"); [ "$n" -eq "$want" ] || die "only $n of $want checks passed"
 echo "all $n checks passed"

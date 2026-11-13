@@ -3,6 +3,7 @@
 #
 #   sudo lfs/build.sh host              prepare the host and $LFS (chapter 4)
 #   sudo lfs/build.sh run ch05 [ch06 …] run chapters, resuming where they stopped
+#   sudo lfs/build.sh verify            check the built system (lfs/verify.sh)
 #   sudo lfs/build.sh mount | umount    virtual kernel file systems (chapter 7.3)
 #   sudo lfs/build.sh pack FILE         archive $LFS (no sources) for the next job
 #   sudo lfs/build.sh unpack FILE
@@ -249,19 +250,50 @@ run() {
   done
 }
 
+# Checks the built system: every section of the book was run, then
+# lfs/verify.sh inside the chroot.
+verify() {
+  [ -x "$LFS/usr/bin/bash" ] || die "$LFS holds no system"
+  local c order id tb ctx missing=0 rc=0
+  log "sections"
+  while IFS=$'\t' read -r c order id tb _; do
+    ctx=$(context "$c" "$id")
+    if [ "$ctx" = skip ] || skipped "$id"; then continue; fi
+    if [ ! -e "$STATE/done/$id" ]; then
+      err "$c $order $id was not built"
+      missing=$((missing + 1))
+    fi
+  done < <(grep -v '^#' "$BOOK/sections.tsv")
+  [ "$missing" -eq 0 ] || die "$missing section(s) of the book were not built"
+  echo "   every section of the book was built"
+  log "system checks (lfs/verify.sh)"
+  do_mount >/dev/null
+  mkdir -p "$STATE/logs"
+  install -m 755 "$HERE/verify.sh" "$STATE/verify.sh"
+  isolated "$STATE/logs/verify.log" chroot "$LFS" /usr/bin/env -i HOME=/root TERM=xterm \
+    PATH=/usr/bin:/usr/sbin /bin/bash /.yvis/verify.sh || rc=$?
+  cat "$STATE/logs/verify.log"
+  return "$rc"
+}
+
 case ${1:-} in
   host) host ;;
   run) shift; run "$@" ;;
+  verify) verify ;;
   mount) do_mount ;;
   umount) do_umount ;;
   pack)
     do_umount
-    tar --zstd -cpf "${2:?file}" -C "$LFS" --exclude=./sources .
+    # numeric ids: the names in $LFS/etc/passwd are not the host's; xattrs
+    # and ACLs: file capabilities must survive the hand-over between jobs
+    tar --zstd --numeric-owner --xattrs --xattrs-include='*' --acls \
+      -cpf "${2:?file}" -C "$LFS" --exclude=./sources .
     ls -lh "$2"
     ;;
   unpack)
     mkdir -p "$LFS"
-    tar --zstd -xpf "${2:?file}" -C "$LFS"
+    tar --zstd --numeric-owner --xattrs --xattrs-include='*' --acls \
+      -xpf "${2:?file}" -C "$LFS"
     ;;
-  *) sed -n '2,11p' "$0"; exit 2 ;;
+  *) sed -n '2,9p' "$0"; exit 2 ;;
 esac

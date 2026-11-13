@@ -1,0 +1,39 @@
+# Checks the lfs-system artifact of an earlier `lfs` run: every section of
+# the book was built, then lfs/verify.sh inside the system (toolchain sanity
+# checks of the book, no missing library, generic GMP/Libffi, owners...).
+name: lfs-verify
+
+on:
+  workflow_dispatch:
+    inputs:
+      system_run:
+        description: "Run id whose lfs-system artifact is checked"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  LFS: /mnt/lfs
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: lfs-system
+          path: ${{ runner.temp }}
+          run-id: ${{ inputs.system_run }}
+          github-token: ${{ github.token }}
+
+      - name: Restore $LFS
+        run: sudo -E bash lfs/build.sh unpack "$RUNNER_TEMP"/lfs-*.tar.zst
+
+      - name: Verify the system
+        run: sudo -E bash lfs/build.sh verify

@@ -145,6 +145,9 @@ jobs:
           sudo rm -f "$RUNNER_TEMP/lfs-system.tar.zst"
           sudo -E bash lfs/build.sh run ch08
 
+      - name: Verify the system
+        run: sudo -E bash lfs/build.sh verify
+
       - name: Pack
         if: always()
         run: |
