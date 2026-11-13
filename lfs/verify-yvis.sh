@@ -52,7 +52,9 @@ echo "== kernel"
 kver=$(cat /.yvis/kernel-release 2>/dev/null)
 m=/usr/lib/modules/$kver
 works "kernel release $kver ends in -yvis" sh -c "case '$kver' in ?*-yvis) ;; *) false ;; esac"
-is "/boot/vmlinuz-$kver is a kernel image" "$(file -b "/boot/vmlinuz-$kver" | cut -d, -f1)" "Linux kernel x86 boot executable bzImage"
+works "/boot/vmlinuz-$kver is an x86 kernel image (bzImage)" \
+  sh -c "file -b '/boot/vmlinuz-$kver' | grep 'Linux kernel x86 boot executable' | grep -q bzImage"
+works "the image carries its release" sh -c "file -b '/boot/vmlinuz-$kver' | grep -q '$kver'"
 works "same image in $m/vmlinuz" cmp -s "/boot/vmlinuz-$kver" "$m/vmlinuz"
 works "/boot/System.map-$kver" test -s "/boot/System.map-$kver"
 works "/boot/config-$kver has every required option" bash /.yvis/files/kernel/check-config.sh "/boot/config-$kver" /.yvis/files/kernel/required
