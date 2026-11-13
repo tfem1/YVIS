@@ -7,9 +7,9 @@ set -euo pipefail
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 [ "$(id -u)" = 0 ] || { echo "needs root"; exit 77; }
 T=$(mktemp -d); chmod 755 "$T"
-cp "$HERE/skip" "$T/skip.orig"; cp "$HERE/edits" "$T/edits.orig"; cp "$HERE/tests-enabled" "$T/tests.orig"
-trap 'cp "$T/skip.orig" "$HERE/skip"; cp "$T/edits.orig" "$HERE/edits"; cp "$T/tests.orig" "$HERE/tests-enabled"; rm -rf "$T"; userdel -r lfs >/dev/null 2>&1 || true' EXIT
-export LFS=$T/lfs YVIS_LFS_BOOK=$T/book
+cp "$HERE/skip" "$T/skip.orig"; cp "$HERE/edits" "$T/edits.orig"; cp "$HERE/tests-enabled" "$T/tests.orig"; cp "$HERE/timeouts" "$T/timeouts.orig"
+trap 'cp "$T/skip.orig" "$HERE/skip"; cp "$T/edits.orig" "$HERE/edits"; cp "$T/tests.orig" "$HERE/tests-enabled"; cp "$T/timeouts.orig" "$HERE/timeouts"; rm -rf "$T"; userdel -r lfs >/dev/null 2>&1 || true' EXIT
+export LFS=$T/lfs YVIS_LFS_BOOK=$T/book YVIS_LFS_OWN=$T/own
 n=0; ok() { n=$((n + 1)); echo "  ✓ $*"; }; die() { echo "  ✗ $*"; exit 1; }
 
 mkdir -p "$T/pkg/hello-1.0" "$YVIS_LFS_BOOK"/{ch05,ch07}
@@ -98,10 +98,11 @@ grep -q "to the log file" "$LFS/.yvis/logs/ch-tools-tty.log" && ! grep -q "to th
   && ok "a section's output goes to .yvis/logs/<id>.log, not to the console"
 [ ! -e "$LFS/.yvis/done/ch-tools-hang" ] && ok "YVIS_UNTIL stops the run after that section"
 start=$SECONDS
-if YVIS_SECTION_TIMEOUT=2s bash "$HERE/build.sh" run ch05 >"$T/log" 2>&1; then sed -i '$d' "$HERE/skip"; die "a hung section must fail the run"; fi
-sed -i '$d' "$HERE/skip"
+echo "ch-tools-hang 2s" >> "$HERE/timeouts"
+if bash "$HERE/build.sh" run ch05 >"$T/log" 2>&1; then sed -i '$d' "$HERE/skip"; die "a hung section must fail the run"; fi
+sed -i '$d' "$HERE/skip"; sed -i '$d' "$HERE/timeouts"
 grep -q "ch-tools-hang: no end after 2s, killed" "$T/log" && [ $((SECONDS - start)) -lt 60 ] && [ ! -e "$LFS/tools/after.out" ] \
-  && ok "a section that hangs is killed after YVIS_SECTION_TIMEOUT and stops the run"
+  && ok "a section that hangs is killed after its time limit (lfs/timeouts) and stops the run"
 [ "$(cat "$LFS/tools/boom.out")" = replaced ] && ok "lfs/overrides/<id>.sh replaces the book's commands"
 [ ! -e "$LFS/tools/hello.out" ] && ok "finished sections are not run again (resume)"
 

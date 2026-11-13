@@ -1,0 +1,11 @@
+NAME="YVIS"
+PRETTY_NAME="YVIS 0.1 (development)"
+ID=yvis
+VERSION="0.1 (development)"
+VERSION_ID="0.1"
+BUILD_ID=@BUILD_ID@
+RELEASE_TYPE=development
+ANSI_COLOR="38;2;139;92;246"
+HOME_URL="https://github.com/tfem1/YVIS"
+DOCUMENTATION_URL="https://github.com/tfem1/YVIS#readme"
+BUG_REPORT_URL="https://github.com/tfem1/YVIS/issues"

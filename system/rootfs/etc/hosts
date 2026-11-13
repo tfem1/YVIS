@@ -1,0 +1,11 @@
+# Begin /etc/hosts
+#
+# The machine's own name is resolved by nss-myhostname (book 9.2.4); the
+# localhost lines are for programs that read this file themselves.
+
+127.0.0.1 localhost.localdomain localhost
+::1       localhost ip6-localhost ip6-loopback
+ff02::1   ip6-allnodes
+ff02::2   ip6-allrouters
+
+# End /etc/hosts

@@ -1,0 +1,96 @@
+# Options the built kernel must have: <option> <expected>, where expected is
+# y, m, n (not set), y|m, or a quoted string. kernel/check-config.sh stops
+# the build if the final .config disagrees: a base configuration or a kernel
+# update must not silently drop one of them.
+
+# --- The book, 10.3.1: "Be sure to enable/disable/set the following features
+# --- or the system might not work correctly or boot at all"
+WERROR                 n
+PSI                    y
+PSI_DEFAULT_DISABLED   n
+IKHEADERS              n
+CGROUPS                y
+MEMCG                  y
+RT_GROUP_SCHED         n
+EXPERT                 n
+RELOCATABLE            y
+RANDOMIZE_BASE         y
+STACKPROTECTOR         y
+STACKPROTECTOR_STRONG  y
+NET                    y
+INET                   y
+IPV6                   y
+UEVENT_HELPER          n
+DEVTMPFS               y
+DEVTMPFS_MOUNT         y
+FW_LOADER_USER_HELPER  n
+DMIID                  y
+SYSFB_SIMPLEFB         y
+TTY                    y
+LEGACY_TIOCSTI         n
+DRM                    y
+DRM_PANIC              y
+DRM_PANIC_SCREEN       "kmsg"
+DRM_FBDEV_EMULATION    y
+DRM_SIMPLEDRM          y
+FRAMEBUFFER_CONSOLE    y
+INOTIFY_USER           y
+TMPFS                  y
+TMPFS_POSIX_ACL        y
+# 64-bit systems
+X86_X2APIC             y
+PCI                    y
+PCI_MSI                y
+IOMMU_SUPPORT          y
+IRQ_REMAP              y
+# NVMe (built in by the book, which boots without an initramfs; YVIS has one)
+BLK_DEV_NVME           y|m
+# UEFI
+EFI                    y
+EFI_STUB               y
+EFI_PARTITION          y
+VFAT_FS                y|m
+EFIVAR_FS              y|m
+NLS_CODEPAGE_437       y|m
+NLS_ISO8859_1          y|m
+
+# --- YVIS
+LOCALVERSION           "-yvis"
+DEFAULT_HOSTNAME       "yvis"
+X86_64                 y
+MODULES                y
+# out-of-tree modules (NVIDIA open) must be loadable
+MODULE_SIG_FORCE       n
+# no tool for these in the base system
+DEBUG_INFO_BTF         n
+RUST                   n
+# live ISO: compressed read-only image, writable layer, the ISO itself
+BLK_DEV_INITRD         y
+RD_ZSTD                y
+SQUASHFS               y|m
+SQUASHFS_ZSTD          y
+OVERLAY_FS             y|m
+ISO9660_FS             y|m
+BLK_DEV_LOOP           y|m
+# boot test in QEMU straight from a disk image, without an initramfs
+EXT4_FS                y
+VIRTIO_PCI             y
+VIRTIO_BLK             y
+SERIAL_8250_CONSOLE    y
+# a PC's usual hardware must be covered
+SATA_AHCI              y|m
+USB_STORAGE            y|m
+USB_XHCI_HCD           y|m
+HID_GENERIC            y|m
+BTRFS_FS               y|m
+XFS_FS                 y|m
+DRM_I915               y|m
+DRM_XE                 y|m
+DRM_AMDGPU             y|m
+DRM_NOUVEAU            y|m
+SND_HDA_INTEL          y|m
+E1000E                 y|m
+R8169                  y|m
+IWLWIFI                y|m
+BT                     y|m
+VIRTIO_NET             y|m

@@ -1,0 +1,16 @@
+# Wired network: address, routes and DNS from DHCP, on any Ethernet card
+# (book 9.2.1.3, matched by type instead of one machine's device name).
+# A file of the same name in /etc/systemd/network replaces this one; the
+# desktop profiles hand the network to NetworkManager instead.
+[Match]
+Type=ether
+Kind=!*
+
+[Network]
+DHCP=yes
+
+[DHCPv4]
+UseDomains=true
+
+[Link]
+RequiredForOnline=no

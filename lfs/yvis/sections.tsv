@@ -1,0 +1,5 @@
+# YVIS sections: chapters 9 and 10 of the book are examples to adapt to one
+# machine; these are the distribution's own versions (see system/, kernel/).
+# chapter	order	section	tarball	title
+ch09	200	yvis-base-files	-	9 System configuration (YVIS)
+ch10	210	yvis-kernel	linux-7.1.8.tar.xz	10.3 Linux-7.1.8 (YVIS configuration)

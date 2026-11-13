@@ -21,6 +21,8 @@
 #                                 single blocks of a section: <id>#<block>
 # lfs/edits                       sed edits of a section's book commands
 # lfs/tests-enabled               test suites that are run: <id>#<block>
+# lfs/timeouts                    time limit of the few long sections
+# lfs/yvis/                       YVIS's own sections (chapters 9 and 10)
 # $LFS/.yvis/done/<section-id>    marks a finished section
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -32,6 +34,9 @@ JOBS=${JOBS:-$(nproc)}
 SECTION_TIMEOUT=${YVIS_SECTION_TIMEOUT:-60m}
 STATE=$LFS/.yvis
 BOOK=${YVIS_LFS_BOOK:-$HERE/book}
+# YVIS's own sections (chapters 9 and 10), same layout as the book's
+OWN=${YVIS_LFS_OWN:-$HERE/yvis}
+REPO=$(cd "$HERE/.." && pwd)
 
 log() { printf '\033[1;35m==>\033[0m %s\n' "$*"; }
 err() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; }
@@ -135,7 +140,7 @@ context() { # chapter id
     ch07:ch-tools-changingowner) echo host ;;
     # mounted by do_mount; entering the chroot and the backup are done by this script
     ch07:ch-tools-kernfs | ch07:ch-tools-chroot | ch07:ch-tools-stripping | ch07:ch-tools-backup) echo skip ;;
-    ch07:* | ch08:*) echo chroot ;;
+    ch07:* | ch08:* | ch09:* | ch10:*) echo chroot ;;
     *) echo skip ;;
   esac
 }
@@ -193,9 +198,9 @@ isolated() { # logfile command...
   setsid --wait timeout --kill-after=1m "$SECTION_TIMEOUT" "$@" </dev/null >"$out" 2>&1
 }
 
-run_section() { # chapter order id tarball
-  local ch=$1 order=$2 id=$3 tb=$4
-  local file=$BOOK/$ch/$order-$id.sh ctx
+run_section() { # directory chapter order id tarball
+  local dir=$1 ch=$2 order=$3 id=$4 tb=$5
+  local file=$dir/$ch/$order-$id.sh ctx limit
   ctx=$(context "$ch" "$id")
   if [ -e "$STATE/done/$id" ]; then return; fi
   if [ "$ctx" = skip ] || skipped "$id"; then
@@ -203,6 +208,9 @@ run_section() { # chapter order id tarball
   fi
   local start=$SECONDS out=$STATE/logs/$id.log rc=0
   mkdir -p "$STATE/logs"
+  # lfs/timeouts: <section id> <duration>, for the few long sections
+  limit=$(awk -v id="$id" '$1 == id { t = $2 } END { print t }' "$HERE/timeouts" 2>/dev/null)
+  local SECTION_TIMEOUT=${limit:-$SECTION_TIMEOUT}
   log "$ch $order $id ($ctx${tb:+, $tb})"
   case $ctx in
     lfs)
@@ -236,17 +244,40 @@ run_section() { # chapter order id tarball
   if [ "${YVIS_VERBOSE:-0}" = 1 ]; then cat "$out"; fi
 }
 
+# Every section: the book's, then YVIS's own. One line each:
+# directory, chapter, order, id, tarball.
+sections() {
+  local d
+  for d in "$BOOK" "$OWN"; do
+    if [ -f "$d/sections.tsv" ]; then
+      grep -v '^#' "$d/sections.tsv" | cut -f1-4 | sed "s|^|$d\t|"
+    fi
+  done
+}
+
+# What YVIS's sections install or read: copied where the chroot sees them.
+sync_files() {
+  rm -rf "$STATE/files"
+  mkdir -p "$STATE/files"
+  local d
+  for d in system kernel; do
+    if [ -d "$REPO/$d" ]; then cp -R "$REPO/$d" "$STATE/files/"; fi
+  done
+  echo "${YVIS_BUILD_ID:-$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo local)}" > "$STATE/files/build-id"
+}
+
 run() {
   [ $# -gt 0 ] || die "run which chapters?"
   [ -f "$BOOK/sections.tsv" ] || die "lfs/book/ missing (run the lfs-book workflow and commit its output)"
   mkdir -p "$STATE/done"
+  sync_files
   for ch in "$@"; do
-    while IFS=$'\t' read -r c order id tb _title; do
+    while IFS=$'\t' read -r dir c order id tb; do
       [ "$c" = "$ch" ] || continue
-      run_section "$c" "$order" "$id" "$tb"
+      run_section "$dir" "$c" "$order" "$id" "$tb"
       # YVIS_UNTIL=<section id>: stop after it (CI checkpoints)
       if [ "$id" = "${YVIS_UNTIL:-}" ]; then return 0; fi
-    done < <(grep -v '^#' "$BOOK/sections.tsv")
+    done < <(sections)
   done
 }
 
@@ -254,25 +285,38 @@ run() {
 # lfs/verify.sh inside the chroot.
 verify() {
   [ -x "$LFS/usr/bin/bash" ] || die "$LFS holds no system"
-  local c order id tb ctx missing=0 rc=0
+  local dir c order id tb ctx missing=0 rc=0 own=0 own_done=0 script
   log "sections"
-  while IFS=$'\t' read -r c order id tb _; do
+  while IFS=$'\t' read -r dir c order id tb; do
     ctx=$(context "$c" "$id")
     if [ "$ctx" = skip ] || skipped "$id"; then continue; fi
+    if [ "$dir" = "$OWN" ]; then
+      # YVIS's sections are a later stage: checked once that stage has begun
+      own=$((own + 1))
+      if [ -e "$STATE/done/$id" ]; then own_done=$((own_done + 1)); fi
+      continue
+    fi
     if [ ! -e "$STATE/done/$id" ]; then
       err "$c $order $id was not built"
       missing=$((missing + 1))
     fi
-  done < <(grep -v '^#' "$BOOK/sections.tsv")
+  done < <(sections)
   [ "$missing" -eq 0 ] || die "$missing section(s) of the book were not built"
+  if [ "$own_done" -gt 0 ] && [ "$own_done" -lt "$own" ]; then
+    die "only $own_done of YVIS's $own own sections (lfs/yvis) were built"
+  fi
   echo "   every section of the book was built"
-  log "system checks (lfs/verify.sh)"
   do_mount >/dev/null
   mkdir -p "$STATE/logs"
-  install -m 755 "$HERE/verify.sh" "$STATE/verify.sh"
-  isolated "$STATE/logs/verify.log" chroot "$LFS" /usr/bin/env -i HOME=/root TERM=xterm \
-    PATH=/usr/bin:/usr/sbin /bin/bash /.yvis/verify.sh || rc=$?
-  cat "$STATE/logs/verify.log"
+  sync_files
+  for script in verify.sh verify-yvis.sh; do
+    if [ "$script" = verify-yvis.sh ] && [ "$own_done" -eq 0 ]; then continue; fi
+    log "system checks (lfs/$script)"
+    install -m 755 "$HERE/$script" "$STATE/$script"
+    isolated "$STATE/logs/${script%.sh}.log" chroot "$LFS" /usr/bin/env -i HOME=/root TERM=xterm \
+      PATH=/usr/bin:/usr/sbin /bin/bash "/.yvis/$script" || rc=1
+    cat "$STATE/logs/${script%.sh}.log"
+  done
   return "$rc"
 }
 

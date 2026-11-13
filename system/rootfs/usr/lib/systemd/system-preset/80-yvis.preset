@@ -1,0 +1,6 @@
+# YVIS service defaults, applied by `systemctl preset-all`.
+#
+# systemd-networkd and systemd-resolved stay enabled (book 9.2.1). Waiting
+# for the network at boot is off: a laptop without a cable would wait two
+# minutes (the book disables it the same way when NetworkManager is used).
+disable systemd-networkd-wait-online.service

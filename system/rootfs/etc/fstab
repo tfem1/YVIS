@@ -1,0 +1,10 @@
+# Begin /etc/fstab
+#
+# Written by the YVIS installer for the disk the system is installed on.
+# The live system needs no entry: its root is given on the kernel command
+# line and systemd mounts the virtual file systems itself.
+#
+# file system  mount-point  type     options             dump  fsck
+#                                                              order
+
+# End /etc/fstab

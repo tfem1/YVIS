@@ -1,0 +1,6 @@
+# Time limit of a section when the default (YVIS_SECTION_TIMEOUT, 60m) is too
+# short: <section id> <duration as understood by timeout(1)>.
+#
+# The kernel with about every driver as a module: around two hours on the
+# four cores of a CI runner.
+yvis-kernel 300m

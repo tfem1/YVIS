@@ -1,0 +1,8 @@
+# Where kernel/base.config comes from (written by kernel/fetch-base-config.sh).
+project = Arch Linux, packaging of the linux package
+tag     = 7.1.8.arch1-3
+url     = https://gitlab.archlinux.org/archlinux/packaging/packages/linux/-/raw/7.1.8.arch1-3/config.x86_64
+wanted  = 7.1.8
+header  = Linux/x86 7.1.8-arch1 Kernel Configuration
+options = 9722 set, 6274 as modules
+sha256  = 9b853f428724ae2edffd330745f47f9bcb6650b10872297686cf38f035f85134
