@@ -25,6 +25,8 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 . "$HERE/config"
 export LFS=${LFS:-/mnt/lfs}
 JOBS=${JOBS:-$(nproc)}
+# a section that hangs fails after this long instead of eating the whole job
+SECTION_TIMEOUT=${YVIS_SECTION_TIMEOUT:-60m}
 STATE=$LFS/.yvis
 BOOK=${YVIS_LFS_BOOK:-$HERE/book}
 
@@ -163,16 +165,16 @@ run_section() { # chapter order id tarball
     lfs)
       script_for "$ch" "$id" "$tb" "$file" "$LFS/sources" > /home/lfs/.yvis-step.sh
       chown lfs /home/lfs/.yvis-step.sh
-      su - lfs -c "env -i HOME=/home/lfs TERM=${TERM:-xterm} bash -c '. ~/.yvis-env && bash -e ~/.yvis-step.sh'" </dev/null
+      timeout --kill-after=1m "$SECTION_TIMEOUT" su - lfs -c "env -i HOME=/home/lfs TERM=${TERM:-xterm} bash -c '. ~/.yvis-env && bash -e ~/.yvis-step.sh'" </dev/null
       ;;
     host)
       script_for "$ch" "$id" "$tb" "$file" "$LFS/sources" > "$STATE/step.sh"
-      LFS=$LFS bash -e "$STATE/step.sh" </dev/null
+      LFS=$LFS timeout --kill-after=1m "$SECTION_TIMEOUT" bash -e "$STATE/step.sh" </dev/null
       ;;
     chroot)
       do_mount >/dev/null
       script_for "$ch" "$id" "$tb" "$file" /sources > "$LFS/.yvis/step.sh"
-      chroot "$LFS" /usr/bin/env -i HOME=/root TERM="${TERM:-xterm}" \
+      timeout --kill-after=1m "$SECTION_TIMEOUT" chroot "$LFS" /usr/bin/env -i HOME=/root TERM="${TERM:-xterm}" \
         PATH=/usr/bin:/usr/sbin MAKEFLAGS="-j$JOBS" TESTSUITEFLAGS="-j$JOBS" \
         /bin/bash -e /.yvis/step.sh </dev/null
       ;;
