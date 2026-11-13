@@ -15,7 +15,8 @@ Status legend: ✅ done and tested · 🔨 in progress · ⏳ not started
 | 6a | Long critical test suites (Glibc, Binutils, GCC) as a separate verification run, compared with the book's known failures | ⏳ |
 | 6b | Security patches from the LFS advisories for 13.1 | ⏳ |
 | 6c | Base system rebuilt as `.yon` packages (see "Packaging the base" below) | ⏳ |
-| 7 | Kernel build + initramfs | ⏳ |
+| 7 | System configuration (chapter 9) and kernel 7.1.8 (chapter 10), `yvis-base` workflow | ✅ run 43388175924 (kernel built in 2 h 02), checks and QEMU boot in run 43425563873 |
+| 7a | Initramfs (the kernel's storage and file system drivers are modules), kernel build tree for out-of-tree modules | ⏳ |
 | 8 | Console ISO (UEFI) booting in QEMU, Yone inside | ⏳ |
 
 ### Packaging the base (6c)
