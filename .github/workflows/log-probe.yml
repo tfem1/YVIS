@@ -15,6 +15,10 @@ on:
         description: "Characters per line"
         type: string
         default: "200"
+      delay_ms:
+        description: "Pause after each line, in milliseconds (0: one burst)"
+        type: string
+        default: "0"
 
 permissions:
   contents: read
@@ -22,15 +26,25 @@ permissions:
 jobs:
   flood:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - name: Print through sudo, as the build did
         env:
           LINES_: ${{ inputs.lines }}
           WIDTH: ${{ inputs.width }}
+          DELAY_MS: ${{ inputs.delay_ms }}
         run: |
-          pad=$(head -c "$WIDTH" /dev/zero | tr '\0' x)
-          sudo seq -f "line %08.0f $pad" 1 "$LINES_"
+          # a build prints line by line over an hour, not in one burst
+          sudo python3 -u -c '
+          import sys, time
+          n, width, delay = int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]) / 1000
+          pad = "x" * width
+          for i in range(1, n + 1):
+              sys.stdout.write("line %08d %s\n" % (i, pad))
+              sys.stdout.flush()
+              if delay:
+                  time.sleep(delay)
+          ' "$LINES_" "$WIDTH" "$DELAY_MS"
           echo "FLOOD SURVIVED: $LINES_ lines printed"
       - name: After the flood
         run: echo "the next step runs"
