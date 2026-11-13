@@ -60,11 +60,11 @@ and the end of the log if it fails; the logs are uploaded as the
 `lfs-system-logs` artifact. A section that does not end within
 `YVIS_SECTION_TIMEOUT` (60 minutes) is killed and fails the build.
 
-This is not cosmetic. In CI the build runs under `sudo`, which gives it a
-pseudo-terminal; a program that touches that terminal can be stopped by job
-control, with nobody to resume it, and the runner cannot kill root's
-processes when the run is cancelled. Chapter 8 hung that way twice on the
-Make section before sections were isolated.
+An unattended build must never wait for a person. The book is written for
+a reader at a keyboard and a few of its commands are interactive
+(`passwd root`, `tzselect`, `vim -c ':options'`): `lfs/extract.py` comments
+them out, and the timeout turns any that slips through into a failure with
+its log instead of a job that hangs for hours.
 
 ### A system for other machines
 

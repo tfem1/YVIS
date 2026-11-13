@@ -172,14 +172,14 @@ script_for() { # chapter id tarball file srcdir
 }
 
 # A section runs the way package builders run a build (jhalfs, sbuild,
-# makechrootpkg): in its own session with no controlling terminal, stdin on
-# /dev/null, all output in a log file.
-#  - no terminal: under `sudo` (use_pty) the build would otherwise own a
-#    terminal, and a program that touches it can be stopped by job control
-#    with nobody to resume it: a silent, endless hang that also stops any
-#    watchdog in the same process group;
-#  - stdin: run() reads the list of sections on stdin, a command reading it
-#    (Expect's pty check does) would swallow the rest of the list;
+# makechrootpkg): unattended. Its own session with no controlling terminal,
+# stdin on /dev/null, all output in a log file, a time limit.
+#  - no terminal, no stdin: a command that wants a person gets an error or
+#    an end of file instead of waiting; and run() reads the list of sections
+#    on stdin, which a command reading it (Expect's pty check does) would
+#    swallow;
+#  - a time limit: what still waits (the book's `vim -c ':options'` did, for
+#    hours) fails the build with its log;
 #  - a log file per section instead of 100 000 lines on the console.
 isolated() { # logfile command...
   local out=$1; shift

@@ -34,6 +34,10 @@ CHAPTERS = ("chapter05", "chapter06", "chapter07", "chapter08")
 # text would misfire (`--disable-runuser` is not `runuser`).
 TEST_TARGETS = {"check", "test", "tests", "test-all", "check-root", "test_harness"}
 INTERACTIVE_CMDS = {"exec", "logout", "exit", "passwd", "tzselect", "chroot"}
+# Full-screen or prompting programs (the book shows `vim -c ':options'` as a
+# way to read Vim's options: unattended, it never ends).
+SCREEN_PROGRAMS = {"nano", "less", "more", "top", "visudo", "vipw", "vigr", "fdisk", "cfdisk"}
+KCONFIG_UIS = {"menuconfig", "nconfig", "xconfig", "gconfig", "config"}
 HEREDOC = re.compile(r"""<<-?\s*(['"]?)(\w+)\1""")
 ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 
@@ -78,7 +82,16 @@ def is_test(words):
 
 
 def is_interactive(words):
-    return os.path.basename(words[0]) in INTERACTIVE_CMDS
+    """A command that waits for a person: it would hang an unattended build."""
+    w0 = os.path.basename(words[0])
+    if w0 in INTERACTIVE_CMDS or w0 in SCREEN_PROGRAMS:
+        return True
+    if w0 in ("vim", "vi", "view", "ex"):
+        # full screen, unless run as a silent ex script (-es, -Es)
+        return not any(re.fullmatch(r"-[eE]s", x) for x in words[1:])
+    if w0 == "make" and KCONFIG_UIS & set(words[1:]):
+        return True
+    return False
 
 
 class Page(html.parser.HTMLParser):

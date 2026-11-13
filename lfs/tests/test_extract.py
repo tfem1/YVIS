@@ -51,6 +51,10 @@ EOF</kbd></pre>
 SQLITE = """<html><body><h1 class="sect1"><a id="ch-system-sqlite"></a>8.52 Sqlite-3530400</h1>
 <pre class="userinput"><kbd class="command">./configure</kbd></pre>
 <pre class="userinput"><kbd class="command">cp -r doc <em class="replaceable"><code>&lt;dir&gt;</code></em>/sqlite</kbd></pre>
+<pre class="userinput"><kbd class="command">ln -sv vim /usr/bin/vi</kbd></pre>
+<pre class="userinput"><kbd class="command">vim -u NONE -es -c 'helptags doc' -c q</kbd></pre>
+<pre class="userinput"><kbd class="command">vim -c ':options'</kbd></pre>
+<pre class="userinput"><kbd class="command">make menuconfig</kbd></pre>
 </body></html>"""
 
 WGET = """https://sourceware.org/pub/binutils/releases/binutils-2.47.tar.xz
@@ -116,6 +120,15 @@ class Extract(unittest.TestCase):
         self.assertIn("SKIPPED (needs a value from lfs/overrides)", g)
         self.assertIn("SKIPPED (interactive)", g)
         self.assertIn("# ln -sfv /usr/share/zoneinfo/<xxx> /etc/localtime", g)
+
+    def test_full_screen_programs_are_interactive(self):
+        # 8.x Vim ends with `vim -c ':options'`: unattended, it never returns
+        # (chapter 8 hung on it until each section got a timeout).
+        s = self.read("ch08/004-ch-system-sqlite.sh")
+        self.assertIn("SKIPPED (interactive)\n# vim -c ':options'", s)
+        self.assertIn("SKIPPED (interactive)\n# make menuconfig", s)
+        self.assertIn("\nln -sv vim /usr/bin/vi", s)  # vim is an argument here
+        self.assertIn("\nvim -u NONE -es -c 'helptags doc' -c q", s)  # silent ex script
 
     def test_placeholder_values(self):
         s = self.read("ch08/004-ch-system-sqlite.sh")

@@ -18,3 +18,8 @@ ch-system-util-linux#3
 # 8.61 Coreutils: the `dummy` group only exists for the test suite.
 ch-system-coreutils#5
 ch-system-coreutils#8
+# 8.72 Vim, block 10: `vim -c ':options'` opens Vim for the reader to browse
+# its options. Unattended it never ends: chapter 8 hung there. extract.py
+# now classifies it as interactive; this entry covers the scripts generated
+# before that.
+ch-system-vim#10
