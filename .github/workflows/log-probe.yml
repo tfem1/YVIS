@@ -1,0 +1,36 @@
+# Does a step that prints a lot hang? Chapter 8 stopped three times when the
+# job log reached about 117 000 lines (25 MB), at two different places of
+# the build. This prints more than that, the same way (through sudo), and
+# says whether the step survives. Not part of the build.
+name: log-probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      lines:
+        description: "Lines to print"
+        type: string
+        default: "200000"
+      width:
+        description: "Characters per line"
+        type: string
+        default: "200"
+
+permissions:
+  contents: read
+
+jobs:
+  flood:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Print through sudo, as the build did
+        env:
+          LINES_: ${{ inputs.lines }}
+          WIDTH: ${{ inputs.width }}
+        run: |
+          pad=$(head -c "$WIDTH" /dev/zero | tr '\0' x)
+          sudo seq -f "line %08.0f $pad" 1 "$LINES_"
+          echo "FLOOD SURVIVED: $LINES_ lines printed"
+      - name: After the flood
+        run: echo "the next step runs"
