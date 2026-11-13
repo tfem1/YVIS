@@ -36,8 +36,9 @@ echo "YVIS-TEST medium=$(findmnt -no FSTYPE /run/yvis/medium)"
 echo "YVIS-TEST system=$(findmnt -no FSTYPE /run/yvis/system)"
 echo "YVIS-TEST writable=$(touch /root/written-by-the-test && echo yes || echo no)"
 echo "YVIS-TEST medium-untouched=$(touch /run/yvis/medium/x 2> /dev/null && echo no || echo yes)"
-for _ in $(seq 1 30); do who | grep -q . && break; sleep 1; done
-echo "YVIS-TEST login=$(who | awk '{ print $1 "@" $2 }' | sort -u | tr '\n' ' ')"
+# the automatic login: root's shell on the first console
+for _ in $(seq 1 30); do pgrep -t tty1 -u root -x bash > /dev/null && break; sleep 1; done
+echo "YVIS-TEST login=$(pgrep -t tty1 -u root -x bash > /dev/null && echo root@tty1)"
 for _ in $(seq 1 45); do
   ip -4 -o addr show scope global | grep -q . && break
   sleep 1
@@ -107,7 +108,7 @@ boot() { # name: bios-disc | bios-usb | uefi-disc | uefi-usb
   check "on the ISO file system" '^YVIS-TEST medium=iso9660$'
   check "the session can write" '^YVIS-TEST writable=yes$'
   check "but not to the medium" '^YVIS-TEST medium-untouched=yes$'
-  check "root is logged in on the first console" '^YVIS-TEST login=.*root@tty1'
+  check "root is logged in on the first console" '^YVIS-TEST login=root@tty1$'
   check "the network got an address by DHCP" '^YVIS-TEST ipv4=10\.0\.2\.'
   [ "$rc" -eq 0 ] || { echo "  FAIL  QEMU ended with status $rc (124: time limit)"; bad=$((bad + 1)); }
   if [ "$bad" -ne 0 ]; then

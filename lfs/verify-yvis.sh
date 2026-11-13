@@ -94,6 +94,8 @@ for f in init dev/console usr/bin/bash usr/bin/mount usr/sbin/switch_root usr/bi
   "usr/lib/modules/$kver/modules.dep" live/etc/motd; do
   works "holds /$f" grep -qx "$f" <<<"$listing"
 done
+# udev opens libkmod at run time: without it, it loads no driver at all
+works "holds libkmod, which udev needs to load drivers" grep -Eq '/libkmod\.so\.2$' <<<"$listing"
 for mod in nvme ahci usb-storage xhci-pci sd_mod sr_mod squashfs overlay isofs loop btrfs xfs vfat virtio_blk; do
   # built into the kernel, or a module file in the image (- and _ are equivalent)
   pat=$(echo "$mod" | sed 's/[-_]/[-_]/g')

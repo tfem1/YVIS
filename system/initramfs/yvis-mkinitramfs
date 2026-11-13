@@ -27,6 +27,9 @@ PROGRAMS = [
     "kmod", "udevadm",
 ]
 KMOD_NAMES = ["modprobe", "insmod", "rmmod", "lsmod", "depmod"]
+# Libraries udev opens at run time (dlopen): ldd does not list them. Without
+# libkmod, udev cannot load a single driver and no disk ever appears.
+DLOPENED = ["libkmod.so.2"]
 UDEV_HELPERS = ["ata_id", "scsi_id", "cdrom_id"]
 UDEV_RULES = [
     "50-udev-default.rules", "60-block.rules", "60-cdrom_id.rules",
@@ -62,6 +65,19 @@ def libraries(path):
         elif "not" in words and "found" in words:
             die(f"{path} needs {words[0]}, which is missing")
     return libs
+
+
+def find_library(soname):
+    """Where the dynamic linker finds a library, from its cache."""
+    out = subprocess.run(["ldconfig", "-p"], capture_output=True, text=True).stdout
+    for line in out.splitlines():
+        words = line.split()
+        if words and words[0] == soname and "=>" in words:
+            return words[-1]
+    for d in ["/usr/lib", "/usr/lib64"]:
+        if os.path.exists(os.path.join(d, soname)):
+            return os.path.join(d, soname)
+    die(f"{soname} is not installed (udev needs it to load drivers)")
 
 
 def module_closure(release_dir, selected):
@@ -156,6 +172,12 @@ def build(release, output, share=SHARE, sysroot="/"):
     for name in KMOD_NAMES:
         os.symlink("../bin/kmod", os.path.join(root, "usr/sbin", name))
 
+    for soname in DLOPENED:
+        lib = find_library(soname)
+        place(os.path.realpath(lib), lib)
+        for dep in libraries(lib):
+            place(os.path.realpath(dep), dep)
+
     # udev: the daemon is udevadm under another name
     os.makedirs(os.path.join(root, "usr/lib/systemd"))
     os.symlink("../../bin/udevadm", os.path.join(root, "usr/lib/systemd/systemd-udevd"))
@@ -187,6 +209,14 @@ def build(release, output, share=SHARE, sysroot="/"):
     for name in MODULE_FILES:
         shutil.copy2(os.path.join(release_dir, name), image_modules)
     subprocess.run(["depmod", "-b", root, release], check=True)
+
+    # Self-test: udev, run inside the image, must be able to load modules.
+    probe = subprocess.run(
+        ["chroot", root, "/usr/bin/udevadm", "test-builtin", "kmod load", "/sys/devices/virtual/mem/null"],
+        capture_output=True, text=True)
+    report = probe.stdout + probe.stderr
+    if "libkmod" in report and ("not available" in report or "Failed to initialize" in report):
+        die("udev in the image cannot load kernel modules:\n" + report.strip())
 
     # the init script and the live session's files
     shutil.copy2(os.path.join(share, "init"), os.path.join(root, "init"))

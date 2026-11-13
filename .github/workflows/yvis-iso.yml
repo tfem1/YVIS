@@ -1,0 +1,113 @@
+# Builds the live ISO from a YVIS base (artifact yvis-base of a `yvis-base`
+# or `yvis-iso` run): initramfs, system image, GRUB for BIOS and UEFI; then
+# boots it in QEMU as a disc and as a USB stick with both firmwares.
+name: yvis-iso
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_run:
+        description: "Run id whose yvis-base artifact is the system to put on the ISO"
+        type: string
+        required: true
+      redo:
+        description: "Sections of lfs/yvis to build again although they are done (e.g. yvis-initramfs)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  LFS: /mnt/lfs
+
+jobs:
+  iso:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h / /mnt
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: yvis-base
+          path: ${{ runner.temp }}
+          run-id: ${{ inputs.base_run }}
+          github-token: ${{ github.token }}
+
+      - name: Restore $LFS
+        run: |
+          sudo -E bash lfs/build.sh unpack "$RUNNER_TEMP"/yvis-base.tar.zst
+          sudo rm -f "$RUNNER_TEMP"/yvis-base.tar.zst
+          sudo mkdir -p "$LFS/sources"
+          sudo ln -sf bash /bin/sh
+
+      - name: Initramfs and what else lfs/yvis holds
+        run: sudo -E YVIS_REDO="${{ inputs.redo }}" bash lfs/build.sh run ch09 ch10
+
+      - name: Verify the system
+        run: sudo -E bash lfs/build.sh verify
+
+      - name: Pack
+        if: always()
+        run: |
+          sudo -E bash lfs/build.sh pack "$RUNNER_TEMP/yvis-base.tar.zst"
+          sudo tar -C "$LFS/.yvis" -czf "$RUNNER_TEMP/yvis-base-logs.tar.gz" logs
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: yvis-base
+          path: ${{ runner.temp }}/yvis-base.tar.zst
+          compression-level: 0
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: yvis-base-logs
+          path: ${{ runner.temp }}/yvis-base-logs.tar.gz
+          retention-days: 14
+
+      - name: Build the ISO
+        run: |
+          sudo rm -f "$RUNNER_TEMP/yvis-base.tar.zst"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq squashfs-tools xorriso mtools dosfstools qemu-system-x86 ovmf > /dev/null
+          sudo -E bash iso/build.sh "$RUNNER_TEMP/iso" | tee "$RUNNER_TEMP/iso-build.txt"
+          sudo chmod -R a+rX "$RUNNER_TEMP/iso"
+          {
+            echo "## YVIS live ISO"
+            echo '```'
+            grep -A3 'yvis-.*\.iso$' "$RUNNER_TEMP/iso-build.txt" | sed 's/\x1b\[[0-9;]*m//g'
+            cat "$RUNNER_TEMP"/iso/*.sha256
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yvis-iso
+          path: |
+            ${{ runner.temp }}/iso/*.iso
+            ${{ runner.temp }}/iso/*.sha256
+          compression-level: 0
+          retention-days: 14
+
+      - name: Boot the ISO (disc and USB stick, BIOS and UEFI)
+        run: bash iso/boot-test.sh "$RUNNER_TEMP"/iso/yvis-*.iso "$RUNNER_TEMP/boot"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: yvis-iso-boot-reports
+          path: |
+            ${{ runner.temp }}/boot/*.report
+            ${{ runner.temp }}/boot/*.console
+          if-no-files-found: ignore
+          retention-days: 14
