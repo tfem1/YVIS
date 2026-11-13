@@ -1,0 +1,34 @@
+# Fetches the base kernel configuration (Arch Linux's, same kernel series as
+# the book) and pushes it to the review branch kernel-config/<version>.
+# Builds only ever use the committed kernel/base.config.
+name: kernel-config
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write  # push the kernel-config/<version> review branch
+
+jobs:
+  fetch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch
+        run: |
+          version=$(sed -n 's|.*/linux-\([0-9.]*\)\.tar\.xz$|\1|p' lfs/wget-list)
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          bash kernel/fetch-base-config.sh "$version" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Push the result to a review branch
+        run: |
+          branch="kernel-config/$VERSION"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+          git add kernel/base.config kernel/base.config.source
+          git commit -m "kernel: base configuration for Linux $VERSION" \
+            -m "Fetched by the kernel-config workflow, run ${{ github.run_id }}."
+          git push -f origin "$branch"
+          echo "pushed to $branch" >> "$GITHUB_STEP_SUMMARY"
