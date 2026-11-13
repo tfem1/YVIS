@@ -11,7 +11,7 @@ Status legend: ✅ done and tested · 🔨 in progress · ⏳ not started
 | 3 | Yone CI on GitHub Actions | ✅ (fmt, clippy, unit, e2e xz+zstd, static binary) |
 | 4 | Measure GitHub runner limits (CPU, RAM, disk, time) | ✅ 4 threads, 1 SBU ≈ 1 min |
 | 5 | LFS 13.1-systemd: commands extracted from the book (`lfs/book/`), sources pinned by SHA-256, cross-toolchain (chapters 5–6) in CI | ✅ |
-| 6 | LFS base system (chapters 7–8) in CI, generic x86-64 (GMP, Libffi), checked by `lfs/verify.sh` | 🔨 chapter 7 ✅, chapter 8 building |
+| 6 | LFS base system (chapters 7–8) in CI, generic x86-64 (GMP, Libffi), checked by `lfs/verify.sh` | ✅ run 43360126564, verified by run 43386299956 (434 MiB archive) |
 | 6a | Long critical test suites (Glibc, Binutils, GCC) as a separate verification run, compared with the book's known failures | ⏳ |
 | 6b | Security patches from the LFS advisories for 13.1 | ⏳ |
 | 6c | Base system rebuilt as `.yon` packages (see "Packaging the base" below) | ⏳ |
