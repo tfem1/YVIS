@@ -1,5 +1,7 @@
 # Roadmap
 
+Orientation (audience, update model, defaults): see DECISIONS.md.
+
 Status legend: ✅ done and tested · 🔨 in progress · ⏳ not started
 
 ## v0.1.0 — "it boots"
