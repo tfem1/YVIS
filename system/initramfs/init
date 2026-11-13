@@ -1,0 +1,116 @@
+#!/bin/bash
+# YVIS initramfs: the first program the kernel runs. It loads the drivers of
+# the storage present (udev), mounts the root file system on /sysroot and
+# hands over to systemd.
+#
+#   root=UUID=… | LABEL=… | PARTUUID=… | PARTLABEL=… | /dev/…   installed system
+#   yvis.live=<label>    live system: the medium with that label holds
+#                        /yvis/rootfs.sfs, mounted read-only under a
+#                        writable layer kept in memory
+#   yvis.break           stop in a shell before leaving the initramfs
+#   ro | rw, rootflags=, rootfstype=, init=   as usual
+#
+# Built by yvis-mkinitramfs from the installed system's own programs.
+export PATH=/usr/bin:/usr/sbin
+
+say() { echo "yvis-initramfs: $*"; }
+
+# Something is missing: explain, and give a shell rather than a panic.
+# Leaving the shell retries.
+rescue() {
+  echo
+  say "$*"
+  say "a shell follows; fix the problem and type 'exit' to try again"
+  setsid -c /usr/bin/bash
+}
+
+mountpoint -q /proc || mount -t proc -o nosuid,noexec,nodev proc /proc
+mountpoint -q /sys || mount -t sysfs -o nosuid,noexec,nodev sysfs /sys
+mountpoint -q /dev || mount -t devtmpfs -o mode=755,nosuid devtmpfs /dev
+mountpoint -q /run || mount -t tmpfs -o mode=755,nosuid,nodev tmpfs /run
+
+root='' live='' rootflags='' rootfstype='' mode=ro init=/usr/lib/systemd/systemd stop=''
+for arg in $(cat /proc/cmdline); do
+  case $arg in
+    root=*) root=${arg#root=} ;;
+    rootflags=*) rootflags=${arg#rootflags=} ;;
+    rootfstype=*) rootfstype=${arg#rootfstype=} ;;
+    init=*) init=${arg#init=} ;;
+    ro) mode=ro ;;
+    rw) mode=rw ;;
+    yvis.live=*) live=${arg#yvis.live=} ;;
+    yvis.break) stop=yes ;;
+  esac
+done
+
+# udev loads the modules of the devices that are there, and creates
+# /dev/disk/by-label, by-uuid...
+/usr/lib/systemd/systemd-udevd --daemon --resolve-names=never
+udevadm trigger --action=add --type=subsystems
+udevadm trigger --action=add --type=devices
+udevadm settle --timeout=30
+
+# Slow devices (USB sticks, optical drives) appear after the first scan.
+wait_for() { # device path, seconds
+  local n=0
+  while [ ! -e "$1" ] && [ "$n" -lt "$(($2 * 5))" ]; do
+    sleep 0.2
+    n=$((n + 1))
+    if [ $((n % 25)) -eq 0 ]; then
+      udevadm trigger --action=add --subsystem-match=block
+      udevadm settle --timeout=5
+    fi
+  done
+  [ -e "$1" ]
+}
+
+device_of() { # root= value
+  case $1 in
+    UUID=*) echo "/dev/disk/by-uuid/${1#UUID=}" ;;
+    LABEL=*) echo "/dev/disk/by-label/${1#LABEL=}" ;;
+    PARTUUID=*) echo "/dev/disk/by-partuuid/${1#PARTUUID=}" ;;
+    PARTLABEL=*) echo "/dev/disk/by-partlabel/${1#PARTLABEL=}" ;;
+    *) echo "$1" ;;
+  esac
+}
+
+mount_live() {
+  local dev=/dev/disk/by-label/$live m=/run/yvis
+  modprobe -a loop squashfs overlay 2> /dev/null
+  wait_for "$dev" 40 || { rescue "no medium labelled '$live' was found"; return 1; }
+  mkdir -p $m/medium $m/system $m/changes
+  mountpoint -q $m/medium || mount -o ro "$dev" $m/medium \
+    || { rescue "cannot mount the medium $dev"; return 1; }
+  [ -f $m/medium/yvis/rootfs.sfs ] || { rescue "the medium has no /yvis/rootfs.sfs"; return 1; }
+  mountpoint -q $m/system || mount -t squashfs -o ro,loop $m/medium/yvis/rootfs.sfs $m/system \
+    || { rescue "cannot mount the system image"; return 1; }
+  # What the live session writes stays in memory, at most three quarters of it.
+  mountpoint -q $m/changes || mount -t tmpfs -o mode=755,size=75% tmpfs $m/changes
+  mkdir -p $m/changes/upper $m/changes/work
+  mount -t overlay -o "lowerdir=$m/system,upperdir=$m/changes/upper,workdir=$m/changes/work" \
+    yvis-live /sysroot || { rescue "cannot assemble the live file system"; return 1; }
+  # Settings of the live session only (automatic login...).
+  cp -a /live/. /sysroot/
+}
+
+mount_installed() {
+  local dev
+  [ -n "$root" ] || { rescue "no root= (or yvis.live=) on the kernel command line"; return 1; }
+  dev=$(device_of "$root")
+  wait_for "$dev" 40 || { rescue "the root device $root was not found"; return 1; }
+  # shellcheck disable=SC2086  # an empty type must not become an argument
+  mount ${rootfstype:+-t $rootfstype} -o "$mode${rootflags:+,$rootflags}" "$dev" /sysroot \
+    || { rescue "cannot mount $dev"; return 1; }
+}
+
+until mountpoint -q /sysroot; do
+  if [ -n "$live" ]; then mount_live; else mount_installed; fi
+done
+until [ -x "/sysroot$init" ]; do rescue "the system has no $init"; done
+
+[ -z "$stop" ] || rescue "yvis.break: the system is mounted on /sysroot"
+
+udevadm control --exit
+# switch_root moves /dev, /proc, /sys and /run (with the live mounts under
+# /run/yvis) to the new root and frees the initramfs.
+exec switch_root /sysroot "$init"

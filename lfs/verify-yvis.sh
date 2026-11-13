@@ -70,6 +70,40 @@ works "modules are signed" sh -c "modinfo -k '$kver' -F signer squashfs | grep -
 works "no link to the removed kernel sources" sh -c "! find '$m' -maxdepth 1 -type l | grep -q ."
 works "what out-of-tree modules need is kept" test -s "$m/build/Module.symvers"
 
+echo "== initramfs"
+works "yvis-mkinitramfs is installed" test -x /usr/sbin/yvis-mkinitramfs
+works "/boot/initramfs-$kver.img exists" test -s "/boot/initramfs-$kver.img"
+works "it is a zstd archive" sh -c "file -b '/boot/initramfs-$kver.img' | grep -q 'Zstandard compressed data'"
+is "it is readable by root only (it could hold keys one day)" "$(stat -c '%U %a' "/boot/initramfs-$kver.img")" "root 600"
+listing=$(zstd -dc "/boot/initramfs-$kver.img" | python3 -c '
+import sys
+data = sys.stdin.buffer.read()
+pos = 0
+while pos < len(data):
+    assert data[pos:pos + 6] == b"070701", "not a newc archive"
+    f = [int(data[pos + 6 + i * 8:pos + 14 + i * 8], 16) for i in range(13)]
+    name = data[pos + 110:pos + 110 + f[11] - 1].decode()
+    if name == "TRAILER!!!":
+        break
+    print(name)
+    pos = (pos + 110 + f[11] + 3) & ~3
+    pos = (pos + f[6] + 3) & ~3
+' 2>&1)
+for f in init dev/console usr/bin/bash usr/bin/mount usr/sbin/switch_root usr/bin/udevadm \
+  usr/lib/systemd/systemd-udevd usr/sbin/modprobe usr/lib/udev/rules.d/60-persistent-storage.rules \
+  "usr/lib/modules/$kver/modules.dep" live/etc/motd; do
+  works "holds /$f" grep -qx "$f" <<<"$listing"
+done
+for mod in nvme ahci usb-storage xhci-pci sd_mod sr_mod squashfs overlay isofs loop btrfs xfs vfat virtio_blk; do
+  # built into the kernel, or a module file in the image (- and _ are equivalent)
+  pat=$(echo "$mod" | sed 's/[-_]/[-_]/g')
+  if grep -Eq "/$pat\.ko" <<<"$listing" || grep -Eq "/$pat\.ko$" "$m/modules.builtin"; then
+    ok "driver $mod is in the image or in the kernel"
+  else
+    bad "driver $mod is in the image or in the kernel"
+  fi
+done
+
 echo
 if [ "$fail" -eq 0 ]; then echo "verify-yvis: all checks passed"; else echo "verify-yvis: $fail check(s) FAILED"; fi
 [ "$fail" -eq 0 ]

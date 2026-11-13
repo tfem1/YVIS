@@ -271,6 +271,8 @@ run() {
   [ -f "$BOOK/sections.tsv" ] || die "lfs/book/ missing (run the lfs-book workflow and commit its output)"
   mkdir -p "$STATE/done"
   sync_files
+  # YVIS_REDO="<id> ...": build these sections again although they are done
+  for id in ${YVIS_REDO:-}; do rm -f "$STATE/done/$id"; done
   for ch in "$@"; do
     while IFS=$'\t' read -r dir c order id tb; do
       [ "$c" = "$ch" ] || continue

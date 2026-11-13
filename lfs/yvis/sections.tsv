@@ -3,3 +3,4 @@
 # chapter	order	section	tarball	title
 ch09	200	yvis-base-files	-	9 System configuration (YVIS)
 ch10	210	yvis-kernel	linux-7.1.8.tar.xz	10.3 Linux-7.1.8 (YVIS configuration)
+ch10	230	yvis-initramfs	-	Initramfs (YVIS)
