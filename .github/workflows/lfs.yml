@@ -158,3 +158,14 @@ jobs:
           compression-level: 0
           retention-days: 14
           overwrite: true
+
+      - name: Section logs
+        if: always()
+        run: sudo tar -C "$LFS/.yvis" -czf "$RUNNER_TEMP/lfs-system-logs.tar.gz" logs
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lfs-system-logs
+          path: ${{ runner.temp }}/lfs-system-logs.tar.gz
+          retention-days: 14

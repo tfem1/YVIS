@@ -31,6 +31,7 @@ STATE=$LFS/.yvis
 BOOK=${YVIS_LFS_BOOK:-$HERE/book}
 
 log() { printf '\033[1;35m==>\033[0m %s\n' "$*"; }
+err() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; }
 die() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 [ "$(id -u)" = 0 ] || die "run as root (sudo)"
 
@@ -149,6 +150,28 @@ script_for() { # chapter id tarball file srcdir
   }
 }
 
+# A section runs the way package builders run a build (jhalfs, sbuild,
+# makechrootpkg): in its own session with no controlling terminal, stdin on
+# /dev/null, all output in a log file.
+#  - no terminal: under `sudo` (use_pty) the build would otherwise own a
+#    terminal, and a program that touches it can be stopped by job control
+#    with nobody to resume it: a silent, endless hang that also stops any
+#    watchdog in the same process group;
+#  - stdin: run() reads the list of sections on stdin, a command reading it
+#    (Expect's pty check does) would swallow the rest of the list;
+#  - a log file per section instead of 100 000 lines on the console.
+isolated() { # logfile command...
+  local out=$1; shift
+  if [ "${YVIS_ISOLATE:-1}" = 0 ]; then
+    # lfs-debug workflow only: the behaviour before isolation (on the
+    # caller's terminal and process group, output on the console)
+    : > "$out"
+    "$@" </dev/null
+    return
+  fi
+  setsid --wait timeout --kill-after=1m "$SECTION_TIMEOUT" "$@" </dev/null >"$out" 2>&1
+}
+
 run_section() { # chapter order id tarball
   local ch=$1 order=$2 id=$3 tb=$4
   local file=$BOOK/$ch/$order-$id.sh ctx
@@ -157,30 +180,39 @@ run_section() { # chapter order id tarball
   if [ "$ctx" = skip ] || skipped "$id"; then
     echo "-- skip $id"; return
   fi
-  local start=$SECONDS
+  local start=$SECONDS out=$STATE/logs/$id.log rc=0
+  mkdir -p "$STATE/logs"
   log "$ch $order $id ($ctx${tb:+, $tb})"
-  # stdin is the list of sections being read by run(): a command reading
-  # stdin (Expect's pty check does) would swallow the rest of the list.
   case $ctx in
     lfs)
       script_for "$ch" "$id" "$tb" "$file" "$LFS/sources" > /home/lfs/.yvis-step.sh
       chown lfs /home/lfs/.yvis-step.sh
-      timeout --kill-after=1m "$SECTION_TIMEOUT" su - lfs -c "env -i HOME=/home/lfs TERM=${TERM:-xterm} bash -c '. ~/.yvis-env && bash -e ~/.yvis-step.sh'" </dev/null
+      isolated "$out" su - lfs -c "env -i HOME=/home/lfs TERM=${TERM:-xterm} bash -c '. ~/.yvis-env && bash -e ~/.yvis-step.sh'" || rc=$?
       ;;
     host)
       script_for "$ch" "$id" "$tb" "$file" "$LFS/sources" > "$STATE/step.sh"
-      LFS=$LFS timeout --kill-after=1m "$SECTION_TIMEOUT" bash -e "$STATE/step.sh" </dev/null
+      isolated "$out" env LFS="$LFS" bash -e "$STATE/step.sh" || rc=$?
       ;;
     chroot)
       do_mount >/dev/null
       script_for "$ch" "$id" "$tb" "$file" /sources > "$LFS/.yvis/step.sh"
-      timeout --kill-after=1m "$SECTION_TIMEOUT" chroot "$LFS" /usr/bin/env -i HOME=/root TERM="${TERM:-xterm}" \
+      isolated "$out" chroot "$LFS" /usr/bin/env -i HOME=/root TERM="${TERM:-xterm}" \
         PATH=/usr/bin:/usr/sbin MAKEFLAGS="-j$JOBS" TESTSUITEFLAGS="-j$JOBS" \
-        /bin/bash -e /.yvis/step.sh </dev/null
+        /bin/bash -e /.yvis/step.sh || rc=$?
       ;;
   esac
+  if [ "$rc" -ne 0 ]; then
+    case $rc in
+      124 | 137) err "$id: no end after $SECTION_TIMEOUT, killed" ;;
+      *) err "$id: failed (exit $rc)" ;;
+    esac
+    echo "---- last ${YVIS_FAIL_TAIL:-300} lines of $out" >&2
+    tail -n "${YVIS_FAIL_TAIL:-300}" "$out" >&2
+    exit 1
+  fi
   touch "$STATE/done/$id"
-  echo "   done in $((SECONDS - start)) s"
+  echo "   done in $((SECONDS - start)) s, $(wc -l < "$out") lines of output"
+  if [ "${YVIS_VERBOSE:-0}" = 1 ]; then cat "$out"; fi
 }
 
 run() {

@@ -1,0 +1,104 @@
+# Root-cause probe for a section that hangs: runs it on a saved $LFS the way
+# lfs/build.sh ran sections before they were isolated (on sudo's terminal,
+# in its process group), under strace, and reports from outside which
+# process stopped and why. Not part of the build.
+name: lfs-debug
+
+on:
+  workflow_dispatch:
+    inputs:
+      system_run:
+        description: "Run id whose lfs-system artifact holds $LFS just before the section"
+        type: string
+        required: true
+      section:
+        description: "Section to observe (the run stops after it)"
+        type: string
+        default: ch-system-make
+      wait:
+        description: "Seconds to let it run before reporting"
+        type: string
+        default: "150"
+      strace:
+        description: "Trace terminal accesses and signals with strace"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  LFS: /mnt/lfs
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: lfs-system
+          path: ${{ runner.temp }}
+          run-id: ${{ inputs.system_run }}
+          github-token: ${{ github.token }}
+
+      - uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/sources
+          key: lfs-sources-${{ hashFiles('lfs/wget-list') }}
+
+      - name: Restore $LFS and sources
+        run: |
+          sudo -E bash lfs/build.sh unpack "$RUNNER_TEMP"/lfs-*.tar.zst
+          bash lfs/fetch-sources.sh "$RUNNER_TEMP/sources"
+          sudo mkdir -p "$LFS/sources"
+          sudo cp "$RUNNER_TEMP"/sources/* "$LFS/sources/"
+          sudo ln -sf bash /bin/sh
+          sudo rm -f lfs/overrides/"$SECTION".sh   # the book's own commands
+          sudo apt-get install -y strace >/dev/null
+          sudo -l | grep -i pty || true
+          sudo --version | head -n 1
+        env:
+          SECTION: ${{ inputs.section }}
+
+      - name: Section on sudo's terminal, observed from outside
+        env:
+          SECTION: ${{ inputs.section }}
+          WAIT: ${{ inputs.wait }}
+          STRACE: ${{ inputs.strace }}
+        run: |
+          set +e
+          trace=$RUNNER_TEMP/trace out=$RUNNER_TEMP/console.log
+          tracer=()
+          if [ "$STRACE" = true ]; then
+            tracer=(strace -f -qq -o "$trace" -e trace=openat,ioctl,read -e signal=all -P /dev/tty -P /dev/console)
+          fi
+          sudo touch "$trace"
+          sudo -E env YVIS_ISOLATE=0 YVIS_UNTIL="$SECTION" "${tracer[@]}" \
+            bash lfs/build.sh run ch08 > "$out" 2>&1 &
+          t=0
+          while [ "$t" -lt "$WAIT" ] && ! sudo test -e "$LFS/.yvis/done/$SECTION"; do sleep 5; t=$((t + 5)); done
+          if sudo test -e "$LFS/.yvis/done/$SECTION"; then
+            echo "RESULT: $SECTION finished in about $t s under the old conditions"
+          else
+            echo "RESULT: $SECTION still not finished after $t s under the old conditions"
+          fi
+          echo "---- last console lines"; tail -n 8 "$out" | cut -c1-200
+          echo "---- processes (STAT T = stopped)"
+          ps -eo pid,ppid,pgid,sid,tty,tpgid,stat,wchan:24,etime,args --forest \
+            | grep -E 'sudo|strace|build\.sh|chroot|step\.sh|make|sleep| T[a-z+<]* ' | grep -v grep | cut -c1-230
+          echo "---- signals and terminal accesses seen by strace"
+          sudo grep -aE 'SIGTT|SIGTSTP|SIGSTOP|stopped by|/dev/tty|/dev/console|TCSET|TIOC' "$trace" | tail -n 60 | cut -c1-260
+          echo "---- cleanup"
+          sudo pkill -KILL -f 'strace -f' ; sudo pkill -KILL -f 'build.sh run'; sudo pkill -KILL -f '/.yvis/step.sh'
+          sleep 2; exit 0
+
+      - name: Same section, isolated
+        env:
+          SECTION: ${{ inputs.section }}
+        run: |
+          sudo rm -f "$LFS/.yvis/done/$SECTION"
+          sudo -E YVIS_UNTIL="$SECTION" YVIS_SECTION_TIMEOUT=10m bash lfs/build.sh run ch08 | tail -n 5
