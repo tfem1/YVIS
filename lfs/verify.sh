@@ -34,8 +34,8 @@ is "start files come from /usr/lib" \
 is "header search path" "$(grep -B4 '^ /usr/include' dummy.log | sed "s|/usr/lib/gcc/$triplet/[0-9.]*|GCC|" | tr '\n' '|')" \
   "#include <...> search starts here:| GCC/include| /usr/local/include| GCC/include-fixed| /usr/include|"
 is "linker search path (besides the -linux-gnu ones)" \
-  "$(grep 'SEARCH.*/usr/lib' dummy.log | sed 's|; |\n|g' | grep -v -- '-linux-gnu' | tr '\n' ' ')" \
-  'SEARCH_DIR("/usr/lib"); '
+  "$(grep 'SEARCH.*/usr/lib' dummy.log | sed 's|; |\n|g' | grep -v -- '-linux-gnu' | tr -d ';' | tr '\n' ' ')" \
+  'SEARCH_DIR("/usr/lib") '
 is "libc" "$(grep '/lib.*/libc.so.6 ' dummy.log)" "attempt to open /usr/lib/libc.so.6 succeeded"
 is "dynamic linker" "$(grep found dummy.log)" "found ld-linux-x86-64.so.2 at /usr/lib/ld-linux-x86-64.so.2"
 if ./a.out; then ok "the program runs"; else bad "the program runs"; fi
@@ -61,7 +61,13 @@ missing=$(
     while read -r f; do
       elf "$f" || continue
       out=$(ldd "$f" 2>&1) || continue
-      case $out in *"not found"*) echo "$f: $(grep 'not found' <<<"$out" | tr -s ' \t' ' ' | head -n 2 | tr '\n' ';')" ;; esac
+      case $out in *"not found"*) ;; *) continue ;; esac
+      # A library of a private directory (/usr/lib/systemd) may need a
+      # sibling that only the program loading it can find, through its run
+      # path: not missing if it sits next to the library.
+      for lib in $(awk '/not found/ { print $1 }' <<<"$out" | sort -u); do
+        [ -e "$(dirname "$f")/$lib" ] || echo "$f: $lib"
+      done
     done | head -n 10
 )
 is "ldd reports no missing library" "$missing" ""
