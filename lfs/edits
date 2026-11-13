@@ -8,3 +8,10 @@
 # 64-bit PC implements.
 ch-system-gmp	s|--docdir=/usr/share/doc/gmp-[0-9.]+|& --host=none-linux-gnu|
 ch-system-libffi	s|--with-gcc-arch=native|--with-gcc-arch=x86-64|
+#
+# 8.84 Stripping: "A large number of files will be flagged as errors because
+# their file format is not recognized. These warnings can be safely ignored.
+# They indicate that those files are scripts, not binaries." Sections run
+# with `bash -e`, so the errors of that last loop (and only that one) are
+# tolerated explicitly.
+ch-system-stripping	s/(\* \) strip --strip-unneeded \$i)$/\1 || true/
