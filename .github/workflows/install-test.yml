@@ -1,0 +1,33 @@
+# The install test (iso/install-test.sh) on an ISO already built: the
+# installer onto an empty virtual disk, then that disk started alone.
+name: install-test
+
+on:
+  workflow_dispatch:
+    inputs:
+      iso_run:
+        description: yvis-iso run whose ISO is used
+        required: true
+      firmwares:
+        default: "uefi bios"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  install:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-system-x86 qemu-utils ovmf > /dev/null
+      - name: The ISO
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download "${{ inputs.iso_run }}" -n yvis-iso -D "$RUNNER_TEMP/iso"
+      - name: Install, then start the installed system
+        run: bash iso/install-test.sh "$(ls "$RUNNER_TEMP"/iso/yvis-*.iso)" "$RUNNER_TEMP/install" ${{ inputs.firmwares }}

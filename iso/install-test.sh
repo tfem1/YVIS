@@ -81,11 +81,11 @@ unit yvis.install > "$work/install.unit"
 unit yvis.check > "$work/check.unit"
 printf '[Unit]\nWants=t.service\n' > "$work/dropin"
 
-machine() { # firmware name -> QEMU options
+machine() { # firmware name -> QEMU options, one per line
   if [ "$1" = uefi ]; then
-    echo -machine q35
-    echo -drive "if=pflash,format=raw,readonly=on,file=$ovmf/OVMF_CODE_4M.fd"
-    echo -drive "if=pflash,format=raw,file=$work/$1.vars"
+    printf '%s\n' -machine q35 \
+      -drive "if=pflash,format=raw,readonly=on,file=$ovmf/OVMF_CODE_4M.fd" \
+      -drive "if=pflash,format=raw,file=$work/$1.vars"
   fi
 }
 
@@ -120,9 +120,9 @@ for fw in "${firmwares[@]}"; do
   grep -a -E '^(YVIS-INSTALL|!!|   [A-Z]|==>|yvis-installer)' "$work/$fw-install.report" | cut -c1-160 || true
   if ! grep -aqx 'YVIS-INSTALL status=0' "$work/$fw-install.report"; then
     echo "  FAIL  the installer did not finish (QEMU status $rc)"
-    tail -n 30 "$work/$fw-install.report" | sed 's/^/  | /'
-    tail -n 20 "$work/$fw-install.console" 2> /dev/null | tr -d '\r' | sed 's/^/  | console: /'
-    sed 's/^/  | qemu: /' "$work/$fw-install.qemu" | head -n 10
+    tail -n 30 "$work/$fw-install.report" 2> /dev/null | sed 's/^/  | /' || true
+    tail -n 20 "$work/$fw-install.console" 2> /dev/null | tr -d '\r' | sed 's/^/  | console: /' || true
+    sed 's/^/  | qemu: /' "$work/$fw-install.qemu" 2> /dev/null | head -n 10 || true
     fail=$((fail + 1))
     continue
   fi
@@ -162,7 +162,7 @@ for fw in "${firmwares[@]}"; do
   check "the choices are recorded" '^YVIS-CHECK choices=.*"profile":"minimal"'
   [ "$rc" -eq 0 ] || { echo "  FAIL  QEMU ended with status $rc (124: time limit)"; bad=$((bad + 1)); }
   if [ "$bad" -ne 0 ]; then
-    tail -n 40 "$work/$fw-boot.console" 2> /dev/null | tr -d '\r' | sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g; s/^/  | /'
+    tail -n 40 "$work/$fw-boot.console" 2> /dev/null | tr -d '\r' | sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g; s/^/  | /' || true
     echo "  $fw: $bad check(s) FAILED"
     fail=$((fail + 1))
   fi
