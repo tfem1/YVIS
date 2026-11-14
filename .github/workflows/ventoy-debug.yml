@@ -1,0 +1,61 @@
+# Variants of an ISO already built (artifact yvis-iso of a yvis-iso run),
+# booted from a Ventoy stick with UEFI firmware: a faster way to find what
+# Ventoy's UEFI path needs than rebuilding the ISO each time.
+name: ventoy-debug
+
+on:
+  workflow_dispatch:
+    inputs:
+      iso_run:
+        description: yvis-iso run whose ISO is used
+        required: true
+      variants:
+        description: "as-is not-compatible"
+        default: "as-is not-compatible"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  ventoy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xorriso mtools dosfstools qemu-system-x86 ovmf exfatprogs > /dev/null
+      - name: The ISO
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download "${{ inputs.iso_run }}" -n yvis-iso -D "$RUNNER_TEMP/iso"
+      - name: Variants, each from a Ventoy stick with UEFI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          iso=$(ls "$RUNNER_TEMP"/iso/yvis-*.iso)
+          fail=0
+          for v in ${{ inputs.variants }}; do
+            echo "::group::variant $v"
+            out=$RUNNER_TEMP/$v.iso
+            case $v in
+              as-is) cp "$iso" "$out"; found=ventoy ;;
+              # Ventoy's usual way for distributions: its own hooks in the
+              # initramfs; the ISO is then a device-mapper disk with its label
+              not-compatible)
+                xorriso -indev "$iso" -outdev "$out" -boot_image any replay \
+                  -application_id "YVIS live" -rm /ventoy.dat -- > /dev/null 2>&1
+                found='label|ventoy' ;;
+            esac
+            sudo GH_TOKEN="$GH_TOKEN" bash iso/ventoy-stick.sh "$out" "$RUNNER_TEMP/$v.img"
+            sudo chown "$(id -u):$(id -g)" "$RUNNER_TEMP/$v.img"
+            YVIS_VENTOY_IMG="$RUNNER_TEMP/$v.img" YVIS_VENTOY_FOUND="$found" YVIS_BOOT_TIMEOUT=480 \
+              YVIS_BOOT_CASES="uefi-ventoy" bash iso/boot-test.sh "$out" "$RUNNER_TEMP/boot-$v" \
+              && echo "variant $v: PASSED" >> "$GITHUB_STEP_SUMMARY" \
+              || { echo "variant $v: FAILED" >> "$GITHUB_STEP_SUMMARY"; fail=1; }
+            rm -f "$RUNNER_TEMP/$v.img" "$out"
+            echo "::endgroup::"
+          done
+          exit $fail

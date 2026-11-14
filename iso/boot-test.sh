@@ -83,7 +83,7 @@ boot() { # name: bios-disc | bios-usb | uefi-disc | uefi-usb | bios-ventoy | uef
   fi
   if [ "$medium" = ventoy ]; then
     [ -s "${YVIS_VENTOY_IMG:-}" ] || { echo "$name: YVIS_VENTOY_IMG is not set (iso/ventoy-stick.sh)" >&2; exit 1; }
-    found=ventoy
+    found=${YVIS_VENTOY_FOUND:-ventoy}
     drive=(-device qemu-xhci -drive "if=none,id=stick,file=$YVIS_VENTOY_IMG,format=raw"
       -device "usb-storage,drive=stick,bootindex=1")
   elif [ "$medium" = usb ]; then
@@ -123,7 +123,7 @@ s.sendall(b"screendump " + sys.argv[2].encode() + b"\n"); time.sleep(3)' \
   check "it is YVIS" '^YVIS-TEST os=yvis$'
   check "booted by $fw firmware" "^YVIS-TEST firmware=$fw\$"
   check "from the medium's own menu entry" "^YVIS-TEST cmdline=.*yvis.live=$label( |\$)"
-  check "the medium was found by $found" "^YVIS-TEST found-by=$found\$"
+  check "the medium was found by $found" "^YVIS-TEST found-by=($found)\$"
   check "the root is the live overlay" '^YVIS-TEST root=overlay yvis-live$'
   check "over the read-only system image" '^YVIS-TEST system=squashfs$'
   check "on the ISO file system" '^YVIS-TEST medium=iso9660$'
