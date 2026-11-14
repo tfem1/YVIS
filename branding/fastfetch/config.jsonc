@@ -5,7 +5,7 @@
   "logo": {
     "type": "file",
     "source": "/usr/share/yvis/fastfetch/yvis.txt",
-    "color": { "1": "38;2;139;92;246" },   // violet YVIS #8B5CF6
+    "color": { "1": "38;2;255;255;255" },  // the logo in white
     "padding": { "top": 1, "left": 1, "right": 3 }
   },
   "display": {
