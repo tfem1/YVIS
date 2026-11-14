@@ -25,3 +25,6 @@ Defaults secure_path="/usr/sbin:/usr/bin"
 %wheel ALL=(ALL) ALL
 EOF2
 chmod 440 /etc/sudoers.d/00-sudo
+
+# --- block 5: book 8.85, as for every package (sudo installs libtool archives)
+find /usr/lib /usr/libexec -name '*.la' -delete

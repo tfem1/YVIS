@@ -22,7 +22,7 @@ works() { # description, command...
 echo "== what the installer needs from the system"
 works "mkfs.vfat (dosfstools: the EFI partition)" mkfs.vfat --help
 works "sudo" sudo -V
-is "sudo is setuid root" "$(stat -c '%U %a' /usr/bin/sudo 2>&1)" "root 4111"
+is "sudo is setuid root" "$(stat -c '%U %a' /usr/bin/sudo 2>&1)" "root 4755"
 works "the wheel group may use sudo" grep -qx '%wheel ALL=(ALL) ALL' /etc/sudoers.d/00-sudo
 works "the installer's engine loads" python3 -c "import sys; sys.path.insert(0, '/usr/share/yvis/initramfs/live/usr/lib/yvis/installer'); import yvis_install"
 

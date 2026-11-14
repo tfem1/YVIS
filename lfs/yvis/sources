@@ -1,5 +1,5 @@
 # Sources of the YVIS sections that are not in the LFS book (lfs/yvis/*.sh),
 # with the MD5 of the BLFS 13.1-systemd book and the SHA-256 YVIS pins.
 #   url  md5  sha256 ("-" until pinned: lfs/yvis/fetch-sources.sh prints it)
-https://github.com/dosfstools/dosfstools/releases/download/v4.2/dosfstools-4.2.tar.gz 49c8e457327dc61efab5b115a27b087a -
-https://www.sudo.ws/dist/sudo-1.9.17p2.tar.gz dcbf46f739ae06b076e1a11cbb271a10 -
+https://github.com/dosfstools/dosfstools/releases/download/v4.2/dosfstools-4.2.tar.gz 49c8e457327dc61efab5b115a27b087a 64926eebf90092dca21b14259a5301b7b98e7b1943e8a201c7d726084809b527
+https://www.sudo.ws/dist/sudo-1.9.17p2.tar.gz dcbf46f739ae06b076e1a11cbb271a10 4a38a1ab3adb1199257edc2a7c4a2bd714665eb605b04368843b06dada2cfcfb
