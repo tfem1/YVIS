@@ -25,7 +25,7 @@ env:
 jobs:
   iso:
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
 
@@ -116,6 +116,14 @@ jobs:
           echo "Ventoy $(cat "$RUNNER_TEMP/ventoy.img.ventoy-version")" >> "$GITHUB_STEP_SUMMARY"
           YVIS_VENTOY_IMG="$RUNNER_TEMP/ventoy.img" YVIS_BOOT_CASES="bios-ventoy uefi-ventoy" \
             bash iso/boot-test.sh "$(ls "$RUNNER_TEMP"/iso/yvis-*.iso)" "$RUNNER_TEMP/boot"
+
+      # The installer, unattended, onto an empty virtual disk; then the
+      # installed system started from that disk alone (iso/install-test.sh).
+      - name: Install onto a virtual disk and start it (UEFI and BIOS)
+        if: always()
+        run: |
+          command -v qemu-img > /dev/null || sudo apt-get install -y -qq qemu-utils > /dev/null
+          bash iso/install-test.sh "$(ls "$RUNNER_TEMP"/iso/yvis-*.iso)" "$RUNNER_TEMP/install" uefi bios
 
       - uses: actions/upload-artifact@v4
         if: always()
