@@ -94,12 +94,23 @@ boot() { # name: bios-disc | bios-usb | uefi-disc | uefi-usb | bios-ventoy | uef
   fi
   echo "==> $name"
   : > "$report"
-  timeout "${YVIS_BOOT_TIMEOUT:-900}" qemu-system-x86_64 \
+  rm -f "$work/$name.ppm"
+  # a picture of the screen shortly before the time limit, for a boot that
+  # never reaches the system (a menu waiting for a key, a firmware error)
+  local limit=${YVIS_BOOT_TIMEOUT:-900}
+  (sleep $((limit - 20)) && python3 -c 'import socket, sys, time
+s = socket.socket(socket.AF_UNIX); s.connect(sys.argv[1])
+s.sendall(b"screendump " + sys.argv[2].encode() + b"\n"); time.sleep(3)' \
+    "$work/$name.monitor" "$work/$name.ppm" > /dev/null 2>&1) &
+  local shooter=$!
+  timeout "$limit" qemu-system-x86_64 \
     -accel tcg,thread=multi -cpu qemu64 -smp 4 -m 3072 "${machine[@]}" "${drive[@]}" \
     -netdev user,id=net0 -device virtio-net-pci,netdev=net0 \
     "${credentials[@]}" \
     -display none -serial "file:$work/$name.console" -serial "file:$report" -no-reboot \
+    -monitor "unix:$work/$name.monitor,server,nowait" \
     > /dev/null 2>&1 || rc=$?
+  kill "$shooter" 2> /dev/null || true
   sed -i 's/\r$//' "$report"
   grep -a '^YVIS-TEST' "$report" | cut -c1-200 || true
   local bad=0
@@ -122,6 +133,12 @@ boot() { # name: bios-disc | bios-usb | uefi-disc | uefi-usb | bios-ventoy | uef
   check "the network got an address by DHCP" '^YVIS-TEST ipv4=10\.0\.2\.'
   [ "$rc" -eq 0 ] || { echo "  FAIL  QEMU ended with status $rc (124: time limit)"; bad=$((bad + 1)); }
   if [ "$bad" -ne 0 ]; then
+    echo "  ---- last lines of its console"
+    tail -n 40 "$work/$name.console" 2> /dev/null | tr -d '\r' | sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g; s/^/  | /' || true
+    if [ -s "$work/$name.ppm" ]; then
+      echo "  ---- its screen before the time limit"
+      python3 "$(dirname "$0")/screenshot.py" "$work/$name.ppm" || true
+    fi
     echo "  $name: $bad check(s) FAILED"
     fail=$((fail + 1))
   fi
