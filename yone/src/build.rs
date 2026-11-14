@@ -10,6 +10,7 @@
 //! depends = glibc
 //! source = https://zlib.net/zlib-1.3.1.tar.xz
 //! sha256 = 38ef96b8dfe510d42707d9c781877914792541133e1870841463bfa73f883e32
+//! # noextract = <archives copied to $SRCDIR as they are, not unpacked>
 //!
 //! @build
 //! cd zlib-$PKGVER
@@ -41,6 +42,8 @@ pub struct Recipe {
     pub sources: Vec<String>,
     pub sha256: Vec<String>,
     pub makedepends: Vec<String>,
+    /// Archives the recipe unpacks itself (documentation, time zone data...).
+    pub noextract: Vec<String>,
     pub build: String,
     pub package: String,
 }
@@ -99,6 +102,20 @@ pub fn parse_recipe(text: &str) -> Result<Recipe> {
     if package.trim().is_empty() {
         bail!("recipe has no @package section");
     }
+    let noextract: Vec<String> = get("noextract")
+        .split_whitespace()
+        .map(str::to_string)
+        .collect();
+    let names: Vec<&str> = sources
+        .iter()
+        .map(|s| match s.split_once("::") {
+            Some((n, _)) => n,
+            None => s.rsplit('/').next().unwrap_or(s),
+        })
+        .collect();
+    if let Some(n) = noextract.iter().find(|n| !names.contains(&n.as_str())) {
+        bail!("noextract: {n} is not one of the sources");
+    }
     Ok(Recipe {
         info,
         pkgver,
@@ -108,6 +125,7 @@ pub fn parse_recipe(text: &str) -> Result<Recipe> {
             .split_whitespace()
             .map(str::to_string)
             .collect(),
+        noextract,
         build,
         package,
     })
@@ -383,7 +401,7 @@ pub fn build(dir: &Path, o: &BuildOpts, ui: &Ui) -> Result<PathBuf> {
                 bail!("{fname}: sha256 mismatch\n  expected {want}\n  got      {got}");
             }
         }
-        if is_archive(fname) {
+        if is_archive(fname) && !r.noextract.iter().any(|n| n == fname) {
             let st = Command::new("tar")
                 .arg("-xf")
                 .arg(path)

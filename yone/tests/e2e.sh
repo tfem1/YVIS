@@ -404,6 +404,33 @@ else
   echo "  - skipped (needs root and the groups tty and disk)"; n=$((n + 7))
 fi
 
+echo "== noextract: archives the recipe unpacks itself"
+mkdir -p "$T/nx/docs-1"; echo doc > "$T/nx/docs-1/index.html"
+tar -C "$T/nx" -czf "$T/nx/docs-1.tar.gz" docs-1
+recipe r/nx <<EOF2
+name = nx
+version = 1.0
+source = docs-1.tar.gz::$T/nx/docs-1.tar.gz
+sha256 = $(sha "$T/nx/docs-1.tar.gz")
+noextract = docs-1.tar.gz
+@package
+test -f docs-1.tar.gz && test ! -d docs-1
+install -d "\$PKGDIR/usr/share/doc/nx"
+tar -xf docs-1.tar.gz -C "\$PKGDIR/usr/share/doc/nx" --strip-components=1
+EOF2
+build r/nx && tar -tf "$T"/repo/nx-1.0-1-*.yon | grep -qx usr/share/doc/nx/index.html \
+  && ok "a noextract archive is handed to the recipe as it is"
+recipe r/nxbad <<EOF2
+name = nxbad
+version = 1.0
+noextract = missing.tar.gz
+@package
+true
+EOF2
+fails "$YONE" build r/nxbad --out "$T/repo" --color never
+grep -q "noextract: missing.tar.gz is not one of the sources" "$T/last.log" && ok "noextract must name one of the sources"
+rm -f "$T"/repo/nx-*; publish
+
 echo "== hooks (run in the root through chroot)"
 if [ "$(id -u)" = 0 ] && file -L "$(command -v busybox 2>/dev/null || echo /nonexistent)" 2>/dev/null | grep -q 'statically linked'; then
   cp "$(command -v busybox)" "$T/busybox"
