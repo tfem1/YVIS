@@ -27,7 +27,7 @@ changing one is a decision of the same kind, recorded here.
 | ISO size | One ISO, at most 5 GB (2026-11-14); over 2 GiB it is hosted on SourceForge, GitHub Releases taking files up to 2 GiB |
 | Hosting | Packages on GitHub; ISOs on SourceForge (no per-file limit), GitHub Releases for files under 2 GiB; a minimal site of its own on Cloudflare Pages (`site/`, graveyardos.pages.dev) |
 | Publication | Public development ISOs as soon as a desktop boots; the console ISO published as a preview at the owner's request (2026-11-14) |
-| Name | GraveyardOS (2026-11-14), renamed from YVIS, a name already in use; the logo is a pixel-art tombstone, the installer and the site are black |
+| Name | GraveyardOS (2026-11-14), renamed from YVIS, a name already in use; the logo is a pixel-art tombstone in plain white; the installer and the site are black with a white interface |
 | Code name | None |
 | License | GNU GPL v3 or later; the name and logo reserved (TRADEMARKS.md); © tfem1 |
 | Extras wanted | zram, a welcome screen at first start, the gaming profile |

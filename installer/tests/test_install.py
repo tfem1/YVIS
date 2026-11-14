@@ -91,6 +91,9 @@ class Plan(unittest.TestCase):
     def test_auto_bios(self):
         s = script(yi.plan(CHOICES, dict(FACTS, firmware="bios")))
         self.assertIn(f"type={yi.BIOS_BOOT_GUID}", s)
+        # the BIOS boot partition GUID ("Hah!IdontNeedEFI"): GRUB embeds
+        # itself there and refuses to install without it
+        self.assertEqual(yi.BIOS_BOOT_GUID, "21686148-6449-6E6F-744E-656564454649")
         self.assertNotIn("mkfs.vfat", s)
         self.assertIn("grub-install --target=i386-pc --boot-directory=/boot /dev/nvme0n1", s)
 

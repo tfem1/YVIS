@@ -14,8 +14,8 @@
     --fg: #F2F2F2;
     --muted: #A3A3A3;
     --line: #1C1C1C;
-    --violet: #9DB1BF;
-    --violet-soft: #C9D6DF;
+    --accent: #FFFFFF;
+    --accent-soft: #FFFFFF;
     --code: #0A0A0A;
   }
   * { box-sizing: border-box; }
@@ -28,8 +28,8 @@
     -webkit-font-smoothing: antialiased;
   }
   main { max-width: 640px; margin: 0 auto; padding: 72px 20px 48px; }
-  a { color: var(--violet-soft); text-decoration: none; border-bottom: 1px solid #3A4855; }
-  a:hover { border-bottom-color: var(--violet-soft); }
+  a { color: var(--accent-soft); text-decoration: none; border-bottom: 1px solid #555555; }
+  a:hover { border-bottom-color: var(--accent-soft); }
   header { display: flex; align-items: center; gap: 12px; }
   header img { width: 52px; height: 52px; image-rendering: pixelated; }
   header h1 { font-size: 28px; letter-spacing: 0.02em; margin: 0; font-weight: 700; }
@@ -46,7 +46,7 @@
   li span { color: var(--muted); }
   .tag {
     display: inline-block; font-size: 12px; font-weight: 600; letter-spacing: 0.06em;
-    padding: 2px 9px; border-radius: 99px; border: 1px solid var(--violet); color: var(--violet-soft);
+    padding: 2px 9px; border-radius: 99px; border: 1px solid var(--accent); color: var(--accent-soft);
     margin-top: 28px;
   }
   pre {
@@ -54,7 +54,7 @@
     padding: 16px 18px; overflow-x: auto; margin: 0;
     font: 14px/1.7 ui-monospace, "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
   }
-  pre .p { color: var(--violet); user-select: none; }
+  pre .p { color: var(--accent); user-select: none; }
   pre .c { color: var(--muted); }
   .download {
     border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px;
