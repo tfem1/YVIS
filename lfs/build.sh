@@ -33,6 +33,10 @@ JOBS=${JOBS:-$(nproc)}
 # a section that hangs fails after this long instead of eating the whole job
 SECTION_TIMEOUT=${GRAVEYARD_SECTION_TIMEOUT:-60m}
 STATE=$LFS/.graveyard
+# Systems built before the project was renamed (YVIS) keep their state in
+# .yvis: the same records, under the new name.
+migrate_state() { if [ -d "$LFS/.yvis" ] && [ ! -e "$STATE" ]; then mv "$LFS/.yvis" "$STATE"; fi; }
+migrate_state
 BOOK=${GRAVEYARD_LFS_BOOK:-$HERE/book}
 # GraveyardOS's own sections (chapters 9 and 10), same layout as the book's
 OWN=${GRAVEYARD_LFS_OWN:-$HERE/graveyard}
@@ -314,6 +318,7 @@ case ${1:-} in
     mkdir -p "$LFS"
     tar --zstd --numeric-owner --xattrs --xattrs-include='*' --acls \
       -xpf "${2:?file}" -C "$LFS"
+    migrate_state
     ;;
   *) sed -n '2,9p' "$0"; exit 2 ;;
 esac
