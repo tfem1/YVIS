@@ -1,6 +1,12 @@
-# Cloudflare Pages: HTTP headers for every page of the site
+# Cloudflare Pages: HTTP headers for every file of the site.
+# The page loads nothing but its own icon and inline style: the policy allows
+# exactly that, and no other site may frame it.
 /*
   Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
-  Referrer-Policy: no-referrer
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
-  Permissions-Policy: interest-cohort=()
+  Referrer-Policy: no-referrer
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: same-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()

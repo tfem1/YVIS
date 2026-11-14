@@ -27,6 +27,15 @@ jobs:
           python3 -m unittest discover -s packages/tests -p 'test_*.py'
           python3 packages/gen-base.py --out "$RUNNER_TEMP/recipes"
           python3 packages/tests/audit-recipes.py "$RUNNER_TEMP/recipes"
+      - name: Installer (engine tests, page served in demo mode)
+        run: |
+          python3 -m unittest discover -s installer/tests -v
+          python3 installer/yvis-installer --demo --port 8475 &
+          for i in $(seq 50); do curl -fs http://127.0.0.1:8475/ > page.html && break; sleep 0.2; done
+          grep -q 'name="yvis-key" content="[A-Za-z0-9_-]\{20,\}"' page.html
+          # the API refuses requests without the page's key
+          [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8475/api/facts)" = 403 ]
+          node --check installer/web/app.js
       - name: Ventoy record reader (compiles cleanly)
         run: gcc -O2 -Wall -Wextra -Werror -o /tmp/vtoy-param system/initramfs/vtoy-param.c
       - name: Kernel configuration checker

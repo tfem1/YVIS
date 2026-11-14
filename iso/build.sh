@@ -99,10 +99,13 @@ rm -rf "$stage"
 (cd "$out" && sha256sum "$(basename "$iso")" > "$(basename "$iso").sha256")
 
 size=$(stat -c %s "$iso")
-limit=$((2 * 1024 * 1024 * 1024))
-printf '   %s\n   label %s, %d MiB (limit: 2048 MiB)\n' "$iso" "$label" "$((size / 1048576))"
+# DECISIONS.md: one ISO of at most 5 GB (over 2 GiB, it goes to SourceForge:
+# GitHub Releases refuse larger files).
+limit=5000000000
+printf '   %s\n   label %s, %d MiB (limit: 5 GB%s)\n' "$iso" "$label" "$((size / 1048576))" \
+  "$([ "$size" -le $((2 * 1024 * 1024 * 1024)) ] || echo '; over 2 GiB: SourceForge, not GitHub Releases')"
 printf '   system image %d MiB, kernel %d MiB, initramfs %d MiB\n' \
   "$(($(stat -c %s "$tree/yvis/rootfs.sfs") / 1048576))" \
   "$(($(stat -c %s "$tree/boot/vmlinuz") / 1048576))" \
   "$(($(stat -c %s "$tree/boot/initramfs.img") / 1048576))"
-[ "$size" -le "$limit" ] || { echo "the ISO is larger than 2 GiB" >&2; exit 1; }
+[ "$size" -le "$limit" ] || { echo "the ISO is larger than 5 GB (DECISIONS.md)" >&2; exit 1; }

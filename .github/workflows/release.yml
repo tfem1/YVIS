@@ -33,6 +33,11 @@ jobs:
           gh run download "${{ inputs.iso_run }}" -n yvis-iso -D iso
           ls -l iso
           (cd iso && sha256sum -c ./*.sha256)
+          size=$(stat -c %s iso/*.iso)
+          if [ "$size" -gt $((2 * 1024 * 1024 * 1024)) ]; then
+            echo "::error::the ISO is over 2 GiB: GitHub Releases refuse it; it goes to SourceForge (DECISIONS.md)"
+            exit 1
+          fi
           # the four regular boots must have passed in that run
           step=$(gh api "repos/${{ github.repository }}/actions/runs/${{ inputs.iso_run }}/jobs" \
             --jq '.jobs[].steps[] | select(.name | startswith("Boot the ISO (disc")) | .conclusion')

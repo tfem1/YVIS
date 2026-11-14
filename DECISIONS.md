@@ -23,10 +23,11 @@ changing one is a decision of the same kind, recorded here.
 | Administration | sudo |
 | Gaming | A profile (Steam, Proton, GameMode, MangoHud) after the desktops work |
 | NVIDIA | Open kernel modules (GTX 1650 and later); older cards use nouveau |
-| ISO over 2 GiB | Allowed (changed 2026-11-14): one ISO may exceed 2 GiB |
+| ISO size | One ISO, at most 5 GB (2026-11-14); over 2 GiB it is hosted on SourceForge, GitHub Releases taking files up to 2 GiB |
 | Hosting | Packages on GitHub; ISOs on SourceForge (no per-file limit), GitHub Releases for files under 2 GiB; a minimal site of its own on Cloudflare Pages (`site/`, yvis.pages.dev) |
 | Publication | Public development ISOs as soon as a desktop boots; the console ISO published as a preview at the owner's request (2026-11-14) |
 | Code name | None |
+| License | GNU GPL v3 or later; the name and logo reserved (TRADEMARKS.md); © tfem1 |
 | Extras wanted | zram, a welcome screen at first start, the gaming profile |
 | Extras declined | Firewall on by default, copy-to-RAM boot entry, `yone rollback`, backup LTS kernel, update robot, btrfs snapshots |
 
