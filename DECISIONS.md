@@ -7,7 +7,8 @@ changing one is a decision of the same kind, recorded here.
 |---|---|
 | Audience | Advanced users (Arch-like), not beginners |
 | Updates | Rolling release, two channels: `testing` first, `stable` after a test period |
-| Packages | Prebuilt binaries only; no community recipe repository, ever |
+| Packages | Prebuilt binaries only; recipes written for YVIS or converted from Arch Linux's PKGBUILDs (0BSD), each built, tested and signed by YVIS (2026-11-14); no community recipe repository, ever |
+| Catalogue | At least 6000 packages in Yone's repositories, the most used first |
 | Yone front end | Command line only |
 | CPU baseline | Any 64-bit PC (plain x86-64) |
 | Non-free software | Firmware only by default; codecs and NVIDIA are the user's choice |

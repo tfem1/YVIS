@@ -76,6 +76,30 @@ Quickshell, Flatpak and kitty as YVIS recipes (not in BLFS).
 COSMIC packages, gaming profile (Steam, Proton, Gamescope,
 GameMode, MangoHud), testing/stable channels, Secure Boot, upgrade tests.
 
+## Catalogue: 6000 packages and more (from Arch Linux's recipes)
+
+Yone itself is not the limit: `yone/tests/scale.sh` builds 6000 linked
+packages and measures each operation (on 4 cores: index 11 s for 1.8 MiB,
+install of 5186 packages in one transaction 25 s, list 0.07 s, search
+0.02 s). The work is the packages. Arch Linux publishes its package
+sources (PKGBUILD) under 0BSD since RFC 40, so they may be converted:
+
+1. `arch/import`: fetch a package's sources from Arch's packaging Git,
+   evaluate the PKGBUILD in a sandbox (bash, no network) and write a
+   YONEBUILD: version, sources and their checksums, dependencies, and the
+   prepare/build/package functions with `$srcdir`/`$pkgdir` mapped to
+   Yone's directories. Split packages (several `pkgname`) become several
+   recipes.
+2. A name map from Arch to YVIS for what the base already has (Arch's
+   `gcc-libs` is in YVIS's `gcc`, ...), checked against the base's files.
+3. The build order from the dependencies; CI builds each wave in the
+   system of the previous ones, records failures and keeps going.
+4. Waves by popularity (Arch's pkgstats): the 1000 most installed first,
+   then 3000, then 6000+. Each package gets the same checks as the base
+   (stray writes, file list, `yone verify` after install).
+5. Hosting: one GitHub release per repository snapshot (files under
+   2 GiB each), indexes signed with the release key.
+
 ## v1.0.0
 
 Only after install/upgrade/rollback have been tested release after release on
