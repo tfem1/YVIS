@@ -118,7 +118,7 @@
     <section class="screen" data-screen="review">
       <p class="eyebrow">Step 6 of 7</p>
       <h1>Check before writing</h1>
-      <ul class="summary" id="summary"></ul>
+      <dl class="summary" id="summary"></dl>
       <label class="check danger" id="consent-field">
         <input type="checkbox" id="consent">
         <span id="consent-text">I understand that the data shown in red will be erased.</span>
@@ -128,12 +128,24 @@
 
     <!-- Install -->
     <section class="screen" data-screen="install">
-      <p class="eyebrow" id="install-eyebrow">Installing</p>
-      <h1 id="install-title">Installing YVIS</h1>
-      <div class="meter"><div class="meter-fill" id="meter"></div></div>
-      <ol class="progress" id="progress"></ol>
+      <div id="install-live">
+        <p class="eyebrow">Step 7 of 7</p>
+        <div class="install-head">
+          <h1>Installing YVIS</h1>
+          <span class="percent" id="percent">0%</span>
+        </div>
+        <p class="now"><span class="spinner" aria-hidden="true"></span><span id="now-text">Starting…</span><span class="elapsed" id="elapsed">0:00</span></p>
+        <div class="meter"><div class="meter-fill" id="meter"></div></div>
+        <ol class="progress" id="progress"></ol>
+      </div>
+      <div class="finish" id="install-end" hidden>
+        <span class="finish-mark" id="finish-mark" aria-hidden="true"></span>
+        <h1 id="install-title"></h1>
+        <p class="lead" id="install-end-text"></p>
+        <p class="finish-meta" id="finish-meta"></p>
+        <button class="primary big" id="reboot" hidden>Restart now</button>
+      </div>
       <details class="log" id="log-box"><summary>Details</summary><pre id="log"></pre></details>
-      <p class="lead" id="install-end" hidden></p>
     </section>
 
     <footer class="nav">

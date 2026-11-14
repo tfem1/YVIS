@@ -190,8 +190,8 @@ function secrets() {
 async function review() {
   $("consent").checked = false;
   $("next").disabled = true;
-  $("summary").replaceChildren(...checked.summary.map((s) =>
-    el("li", { class: /^(ERASE|FORMAT)/.test(s) ? "erase" : "" }, s)));
+  $("summary").replaceChildren(...checked.summary.map((r) =>
+    el("div", { class: r.danger ? "row erase" : "row" }, el("dt", {}, r.label), el("dd", {}, r.value))));
   $("plan").replaceChildren(...checked.steps.map((s) => el("li", {}, s)));
 }
 
@@ -234,11 +234,15 @@ async function check(upTo) {
 
 // ---------------------------------------------------------------- install
 
+const clock = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+
 async function install() {
   $("next").disabled = true;
   const r = await api("/api/install", { choices: C, secrets: secrets(), confirm: true });
   if (!r.started) { $("nav-error").textContent = r.error || "The server refused."; $("next").disabled = false; return; }
   show("install");
+  const t0 = Date.now();
+  const timer = setInterval(() => ($("elapsed").textContent = clock(Math.round((Date.now() - t0) / 1000))), 1000);
   let since = 0;
   const log = $("log");
   const tick = async () => {
@@ -247,25 +251,45 @@ async function install() {
     if (s.lines.length) { log.textContent += s.lines.join("\n") + "\n"; log.scrollTop = log.scrollHeight; }
     $("progress").replaceChildren(...s.steps.map((x) => el("li", { class: x.state }, x.title)));
     const done = s.steps.filter((x) => x.state === "done").length;
-    $("meter").style.width = (100 * done / Math.max(1, s.steps.length)) + "%";
+    const pct = Math.round(100 * done / Math.max(1, s.steps.length));
+    $("meter").style.width = pct + "%";
+    $("percent").textContent = pct + "%";
+    const running = s.steps.find((x) => x.state === "running");
+    if (running) $("now-text").textContent = running.title + "…";
     if (s.state === "running") return setTimeout(tick, 700);
-    const end = $("install-end");
-    end.hidden = false;
-    if (s.state === "done") {
-      $("install-eyebrow").textContent = "Done";
+
+    clearInterval(timer);
+    const took = clock(Math.round((Date.now() - t0) / 1000));
+    $("install-live").hidden = true;
+    $("install-end").hidden = false;
+    const ok = s.state === "done";
+    $("install-end").classList.toggle("failed", !ok);
+    $("finish-mark").textContent = ok ? "✓" : "!";
+    if (ok) {
+      const demo = F.demo || F.dry_run;
       $("install-title").textContent = "YVIS is installed";
-      end.textContent = F.demo || F.dry_run ? "Nothing was written: this was a demonstration." : "Remove the installation medium, then restart the computer.";
+      $("install-end-text").textContent = demo
+        ? "Nothing was written: this was a demonstration."
+        : "Remove the installation medium, then restart. Log in as " + C.user.name + ".";
+      $("finish-meta").textContent = `${s.steps.length} steps in ${took}`;
+      $("reboot").hidden = demo;
       document.querySelectorAll("#steps li").forEach((li) => (li.className = "done"));
     } else {
-      $("install-eyebrow").textContent = "Stopped";
-      $("install-title").textContent = "The installation failed";
-      $("meter").classList.add("failed");
+      const failed = s.steps.find((x) => x.state === "failed");
+      $("install-title").textContent = "The installation stopped";
+      $("install-end-text").textContent = `At “${failed ? failed.title : "?"}”. The details below show the command that failed; the disk may be partly written. Start the installer again once the cause is fixed.`;
+      $("finish-meta").textContent = `after ${took}`;
       $("log-box").open = true;
-      end.textContent = "The details below show the command that failed. The disk may be partly written: start the installer again after fixing the cause.";
     }
   };
   tick();
 }
+
+$("reboot").onclick = async () => {
+  $("reboot").disabled = true;
+  $("reboot").textContent = "Restarting…";
+  await api("/api/reboot", {});
+};
 
 // ---------------------------------------------------------------- start
 

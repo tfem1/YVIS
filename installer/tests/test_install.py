@@ -143,7 +143,14 @@ class Plan(unittest.TestCase):
 class Summary(unittest.TestCase):
     def test_says_what_is_erased(self):
         s = yi.summary(CHOICES, FACTS)
-        self.assertTrue(s[0].startswith("ERASE the whole disk /dev/nvme0n1"))
+        self.assertTrue(s[0]["danger"])
+        self.assertIn("The whole disk /dev/nvme0n1", s[0]["value"])
+        self.assertFalse(any(r["danger"] for r in s[1:]))
+
+    def test_manual_keeps_windows_efi_not_danger(self):
+        c = dict(CHOICES, disk={"mode": "manual", "root": "/dev/nvme0n1p3", "efi": "/dev/nvme0n1p1"})
+        rows = yi.summary(c, FACTS)
+        self.assertEqual([r["label"] for r in rows if r["danger"]], ["Formatted"])
 
 
 if __name__ == "__main__":

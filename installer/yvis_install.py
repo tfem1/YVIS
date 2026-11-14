@@ -14,6 +14,7 @@ import os
 import re
 import shlex
 import subprocess
+import time
 
 TARGET = "/mnt/yvis-target"
 LIVE_SYSTEM = "/run/yvis/system"   # the live medium's read-only system image
@@ -377,31 +378,44 @@ def plan(c, f):
 
 
 def summary(c, f):
-    """What will happen, in plain words, for the last screen before writing."""
+    """What will happen, for the last screen before writing: rows of
+    {label, value, step, danger}; danger rows are what gets erased."""
     disk = c["disk"]
+    rows = []
     if disk["mode"] == "auto":
         d = _disk(f, disk["device"])
-        where = [f"ERASE the whole disk {d['path']} ({d['model'] or 'disk'}, {d['size'] / 1e9:.0f} GB): everything on it is lost"]
+        rows.append({"label": "Erased", "danger": True, "step": "disk",
+                     "value": f"The whole disk {d['path']} ({d['model'] or 'disk'}, {d['size'] / 1e9:.0f} GB): everything on it is lost"})
+        layout = "EFI partition 1 GB, " if f["firmware"] == "uefi" else ""
+        layout += "/boot 1 GB, encrypted system on the rest" if c.get("encrypt") else "system on the rest"
+        rows.append({"label": "Layout", "value": layout, "step": "disk"})
     else:
-        where = [f"FORMAT {disk['root']} for the system: everything on it is lost"]
+        rows.append({"label": "Formatted", "danger": True, "step": "disk",
+                     "value": f"{disk['root']}, for the system: everything on it is lost"})
         if disk.get("efi"):
-            where.append(("FORMAT " if disk.get("format_efi") else "Use ") + f"{disk['efi']} as the EFI partition")
-    s = where + [
-        f"Firmware: {f['firmware'].upper()}" + (", disk encrypted" if c.get("encrypt") else ""),
-        f"Language {c['locale']}, keyboard {c['keymap']}, time zone {c['timezone']}",
-        f"Computer name {c['hostname']}, user {c['user']['name']}" + (" (administrator with sudo)" if f["can"]["sudo"] else " (root has the same password)"),
+            rows.append({"label": "EFI partition", "step": "disk", "danger": bool(disk.get("format_efi")),
+                         "value": disk["efi"] + (": formatted" if disk.get("format_efi") else ", kept as it is (shared with the other system)")})
+    rows += [
+        {"label": "Start-up", "step": "disk",
+         "value": f"{f['firmware'].upper()}, GRUB" + (", disk encrypted (passphrase at every start)" if c.get("encrypt") else "")},
+        {"label": "Region", "step": "region", "value": f"{c['locale']} · keyboard {c['keymap']} · {c['timezone']}"},
+        {"label": "Account", "step": "account",
+         "value": f"{c['user']['name']} on {c['hostname']}" + (", administrator with sudo" if f["can"]["sudo"] else ", root has the same password")},
     ]
     desk = [DESKTOPS[d] for d in c.get("desktops") or []]
-    s.append(f"Desktop: {' and '.join(desk) or 'none (console)'}, profile {PROFILES[c['profile']]}" + (", NVIDIA driver" if c.get("nvidia") else ""))
     missing = [DESKTOPS[d] for d in c.get("desktops") or [] if d not in f["can"]["desktops"]]
+    soft = f"{' and '.join(desk) or 'No desktop (console)'} · {PROFILES[c['profile']]}" + (" · NVIDIA driver" if c.get("nvidia") else "")
     if missing:
-        s.append(f"{' and '.join(missing)} is not on this live system yet: installed later with Yone")
-    return s
+        soft += f" ({' and '.join(missing)}: installed later with Yone, not on this live system yet)"
+    rows.append({"label": "Software", "step": "software", "value": soft})
+    for r in rows:
+        r.setdefault("danger", False)
+    return rows
 
 
 # ------------------------------------------------------------------ run
 
-def run(steps, secrets, log, dry_run=False):
+def run(steps, secrets, log, dry_run=False, pace=0.0):
     """Run the steps in order; log(event) receives progress. Stops at the
     first failure and returns False."""
     env = dict(os.environ, YVIS_PASSWORD=secrets.get("password", ""),
@@ -411,6 +425,7 @@ def run(steps, secrets, log, dry_run=False):
         if dry_run:
             for line in script.splitlines():
                 log({"step": i, "line": line})
+            time.sleep(pace)  # --demo: slow enough to be watched
             log({"step": i, "state": "done"})
             continue
         p = subprocess.Popen(["bash", "-euo", "pipefail", "-c", script], env=env,

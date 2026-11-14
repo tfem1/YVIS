@@ -60,6 +60,7 @@ class Job:
         self.state = "idle"   # idle, running, done, failed
         self.steps = []
         self.events = []
+        self.pace = 0.0
 
     def log(self, event):
         with self.lock:
@@ -75,7 +76,7 @@ class Job:
             self.steps = [{"title": t, "state": "waiting"} for t, _ in steps]
 
         def work():
-            ok = yi.run(steps, secret, self.log, dry_run=dry_run)
+            ok = yi.run(steps, secret, self.log, dry_run=dry_run, pace=self.pace)
             with self.lock:
                 self.state = "done" if ok else "failed"
         threading.Thread(target=work, daemon=True).start()
@@ -162,6 +163,14 @@ def make_handler(args, key, job):
                 body = json.loads(self.rfile.read(length) or b"{}")
             except ValueError:
                 return self.send(400, {"error": "not JSON"})
+            if self.path == "/api/reboot":
+                if job.state != "done":
+                    return self.send(409, {"error": "nothing was installed"})
+                if args.demo or args.dry_run:
+                    return self.send(200, {"rebooting": False})
+                self.send(200, {"rebooting": True})
+                os.system("sleep 1 && systemctl reboot &")
+                return None
             choices, secret = body.get("choices") or {}, body.get("secrets") or {}
             f = facts()
             errors = yi.validate(choices, f, secret)
@@ -193,7 +202,9 @@ def main():
     if not (args.demo or args.dry_run) and os.geteuid() != 0:
         sys.exit("yvis-installer: run as root (or try --demo)")
     key = secrets.token_urlsafe(18)
-    server = http.server.ThreadingHTTPServer((args.listen, args.port), make_handler(args, key, Job()))
+    job = Job()
+    job.pace = 0.9 if args.demo else 0.0
+    server = http.server.ThreadingHTTPServer((args.listen, args.port), make_handler(args, key, job))
     shown = args.listen if args.listen not in ("0.0.0.0", "") else socket.gethostname()
     if args.listen in ("127.0.0.1", "localhost"):
         print(f"YVIS installer: http://{shown}:{args.port}/", flush=True)
