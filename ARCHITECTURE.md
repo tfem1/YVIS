@@ -4,7 +4,7 @@
 
 1. **Built from source, reproducibly.** Every binary package comes from a
    `YONEBUILD` recipe with pinned source checksums. Builds use a fixed
-   `SOURCE_DATE_EPOCH`, sorted archive entries and normalised ownership, so the
+   `SOURCE_DATE_EPOCH`, sorted archive entries and owners by name, so the
    same recipe produces the same bytes (checked in the Yone e2e suite).
 2. **Small trusted base.** Yone has no third-party Rust crates. It relies only
    on tools already in an LFS base system: OpenSSL (ed25519), xz/zstd, curl.
@@ -108,9 +108,14 @@ COSMIC, gaming stack (Steam, Gamescope, MangoHud…), Flatpak applications.
 A tar stream compressed with zstd (default) or xz. The first entry is
 `.YONEINFO` (`key = value` metadata: name, version `ver-rel`, depends,
 provides, conflicts, backup, isize…). Everything else is the file tree relative
-to `/`. Ownership is always root:root (other owners are set at install time by
-`systemd-tmpfiles`/`systemd-sysusers` hooks, since user ids are only known
-then). File capabilities (`setcap`) are kept as pax `SCHILY.xattr` records;
+to `/`. Each entry carries its owner by name and id (ustar `uname`/`gname`,
+`uid`/`gid`): almost everything is root's, a few files are not (`wall` and
+`write` belong to the group tty, D-Bus's launch helper to messagebus). At
+installation the names are looked up in the target root's own `/etc/passwd`
+and `/etc/group`, the ids being the fallback, and the owner is set before the
+mode so that setuid/setgid bits survive. Built by an ordinary user, what that
+user created is root's in the package (as with fakeroot). The local database
+records non-root owners and `yone verify` checks them. File capabilities (`setcap`) are kept as pax `SCHILY.xattr` records;
 no other extended attribute is honoured. A package without files is a meta
 package (a desktop profile, for instance).
 

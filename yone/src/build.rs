@@ -196,6 +196,49 @@ fn walk(base: &Path, rel: &str, out: &mut Vec<Node>) -> Result<()> {
     Ok(())
 }
 
+/// Who owns the staged files. As root, a file keeps its owner: `make install`
+/// gives `wall` to the group tty, for instance. Built by another user,
+/// everything that user created is root's (as with fakeroot), anything else
+/// keeps its owner. Names are those of the build machine; the installing
+/// machine maps them back to its own ids.
+struct BuildOwners {
+    me: Option<(u32, u32)>,
+}
+
+impl BuildOwners {
+    fn new() -> BuildOwners {
+        BuildOwners {
+            me: match (util::euid(), util::egid()) {
+                (Some(0), _) | (None, _) | (_, None) => None,
+                (Some(u), Some(g)) => Some((u, g)),
+            },
+        }
+    }
+
+    fn of(&self, meta: &fs::Metadata) -> crate::tar::Owner {
+        use std::os::unix::fs::MetadataExt;
+        let (mut uid, mut gid) = (meta.uid(), meta.gid());
+        if let Some((u, g)) = self.me {
+            if uid == u {
+                uid = 0;
+            }
+            if gid == g {
+                gid = 0;
+            }
+        }
+        if uid == 0 && gid == 0 {
+            return crate::tar::Owner::root();
+        }
+        let root = Path::new("/");
+        crate::tar::Owner {
+            uid,
+            gid,
+            user: util::account_name(root, "etc/passwd", uid).unwrap_or_default(),
+            group: util::account_name(root, "etc/group", gid).unwrap_or_default(),
+        }
+    }
+}
+
 /// Archive a staged tree into a `.yon` file.
 pub fn write_package(
     info: &mut PkgInfo,
@@ -213,12 +256,14 @@ pub fn write_package(
         .filter(|n| n.meta.is_file())
         .map(|n| n.meta.len())
         .sum();
+    let owners = BuildOwners::new();
     let tarpath = util::suffixed(out, ".tar.tmp");
     {
         let mut tw = TarWriter::new(BufWriter::new(File::create(&tarpath)?), mtime);
         let meta = info.to_text();
         tw.add_file(INFO_NAME, 0o644, meta.len() as u64, &mut meta.as_bytes())?;
         for n in &nodes {
+            tw.owner = owners.of(&n.meta);
             let mode = n.meta.permissions().mode();
             let ft = n.meta.file_type();
             if ft.is_dir() {

@@ -719,6 +719,7 @@ fn run_plan(
         let mut out = vec![];
         let mut dir_ok: HashSet<PathBuf> = HashSet::new();
         let mut fault_budget = fault_injection();
+        let mut owners = Owners::new(&cfg.root);
         for (n, (it, f)) in plan.iter().zip(&files).enumerate() {
             let old = db.get(&it.info.name)?;
             let old_files: HashMap<String, FileRec> = if old.is_some() {
@@ -745,6 +746,7 @@ fn run_plan(
                 &listings[n].entries,
                 &old_files,
                 &mut fault_budget,
+                &mut owners,
             )?;
             // reasons only ever widen (dependency -> explicit), except that
             // an explicit reinstall keeps the existing reason (see install())
@@ -900,6 +902,90 @@ fn ensure_dirs(
     Ok(())
 }
 
+/// Gives installed files their owner. Names are looked up in the target
+/// root's own /etc/passwd and /etc/group (read again after each package: the
+/// one that creates a group may be in the same transaction); the ids
+/// recorded in the package are the fallback.
+pub struct Owners {
+    root: PathBuf,
+    can_chown: bool,
+    warned: HashSet<String>,
+}
+
+impl Owners {
+    pub fn new(root: &Path) -> Owners {
+        Owners {
+            root: root.to_path_buf(),
+            can_chown: util::euid() == Some(0),
+            warned: HashSet::new(),
+        }
+    }
+
+    fn warn_once(&mut self, ui: &Ui, key: String, msg: String) {
+        if self.warned.insert(key) {
+            ui.progress_end();
+            ui.warn(&msg);
+        }
+    }
+
+    /// The ids `owner` stands for on the target system.
+    fn ids(&mut self, ui: &Ui, owner: &crate::tar::Owner) -> (u32, u32) {
+        let uid = util::account_id(&self.root, "etc/passwd", &owner.user).unwrap_or_else(|| {
+            if !owner.user.is_empty() {
+                self.warn_once(
+                    ui,
+                    format!("u:{}", owner.user),
+                    format!(
+                        "user {} is unknown on the target system: id {} is used",
+                        owner.user, owner.uid
+                    ),
+                );
+            }
+            owner.uid
+        });
+        let gid = util::account_id(&self.root, "etc/group", &owner.group).unwrap_or_else(|| {
+            if !owner.group.is_empty() {
+                self.warn_once(
+                    ui,
+                    format!("g:{}", owner.group),
+                    format!(
+                        "group {} is unknown on the target system: id {} is used",
+                        owner.group, owner.gid
+                    ),
+                );
+            }
+            owner.gid
+        });
+        (uid, gid)
+    }
+
+    /// Apply `owner` to `p` (before its mode: chown clears setuid/setgid).
+    /// Returns what the database records.
+    fn apply(
+        &mut self,
+        ui: &Ui,
+        p: &Path,
+        owner: &crate::tar::Owner,
+        rel: &str,
+    ) -> Result<Option<String>> {
+        if owner.is_root() {
+            return Ok(None);
+        }
+        let spec = owner.spec();
+        if !self.can_chown {
+            self.warn_once(
+                ui,
+                format!("r:{rel}"),
+                format!("/{rel} should belong to {spec}: only root can do that"),
+            );
+            return Ok(Some(spec));
+        }
+        let (uid, gid) = self.ids(ui, owner);
+        util::set_owner(p, uid, gid).ctx(|| format!("chown {}", p.display()))?;
+        Ok(Some(spec))
+    }
+}
+
 fn set_mode(p: &Path, mode: u32) -> Result<()> {
     use std::os::unix::fs::PermissionsExt;
     fs::set_permissions(p, fs::Permissions::from_mode(mode & 0o7777))
@@ -939,6 +1025,7 @@ fn extract(
     planned: &[crate::tar::Entry],
     old_files: &HashMap<String, FileRec>,
     fault: &mut Option<usize>,
+    owners: &mut Owners,
 ) -> Result<Vec<FileRec>> {
     let mut tr = archive::open_tar(file)?;
     let mut planned = planned.iter();
@@ -986,16 +1073,22 @@ fn extract(
         }
         match &e.kind {
             Kind::Dir => {
-                if fs::metadata(&target).is_err() {
+                // an existing directory keeps its owner and mode
+                let owner = if fs::metadata(&target).is_err() {
                     j.rec('D', &target)?;
                     fs::create_dir(&target).ctx(|| format!("mkdir {}", target.display()))?;
+                    let o = owners.apply(ui, &target, &e.owner, &rel)?;
                     set_mode(&target, e.mode)?;
-                }
+                    o
+                } else {
+                    (!e.owner.is_root()).then(|| e.owner.spec())
+                };
                 recs.push(FileRec {
                     kind: 'd',
                     mode: e.mode,
                     data: "-".into(),
                     path: rel,
+                    owner,
                 });
             }
             Kind::File => {
@@ -1014,6 +1107,7 @@ fn extract(
                     w.flush()?;
                     w.hasher.finalize_hex()
                 };
+                let owner = owners.apply(ui, &tmp, &e.owner, &rel)?;
                 set_mode(&tmp, e.mode)?;
                 for (k, v) in &e.xattrs {
                     if k != util::CAPABILITY_XATTR {
@@ -1052,6 +1146,7 @@ fn extract(
                         mode: e.mode,
                         data: sha,
                         path: rel,
+                        owner,
                     });
                     continue;
                 }
@@ -1061,6 +1156,7 @@ fn extract(
                     mode: e.mode,
                     data: sha,
                     path: rel,
+                    owner,
                 });
             }
             Kind::Symlink(t) => {
@@ -1069,12 +1165,14 @@ fn extract(
                 let _ = fs::remove_file(&tmp);
                 std::os::unix::fs::symlink(t, &tmp)
                     .ctx(|| format!("symlink {}", target.display()))?;
+                let owner = owners.apply(ui, &tmp, &e.owner, &rel)?;
                 place(j, &tmp, &target)?;
                 recs.push(FileRec {
                     kind: 'l',
                     mode: 0o777,
                     data: t.clone(),
                     path: rel,
+                    owner,
                 });
             }
             Kind::Hardlink(t) => {
@@ -1096,6 +1194,7 @@ fn extract(
                     mode: e.mode,
                     data: sha,
                     path: rel,
+                    owner: None,
                 });
             }
         }
@@ -1366,6 +1465,26 @@ pub fn verify(cfg: &Config, ui: &Ui, names: &[String]) -> Result<bool> {
                     },
                 },
             };
+            let problem = problem.or_else(|| {
+                let spec = f.owner.as_ref()?;
+                use std::os::unix::fs::MetadataExt;
+                let m = fs::symlink_metadata(&p).ok()?;
+                let (user, group) = spec.split_once(':')?;
+                let user_ok = util::account_id(&cfg.root, "etc/passwd", user)
+                    .map(|id| id == m.uid())
+                    .unwrap_or(true);
+                let group_ok = util::account_id(&cfg.root, "etc/group", group)
+                    .map(|id| id == m.gid())
+                    .unwrap_or(true);
+                let have = format!(
+                    "{}:{}",
+                    util::account_name(&cfg.root, "etc/passwd", m.uid())
+                        .unwrap_or_else(|| m.uid().to_string()),
+                    util::account_name(&cfg.root, "etc/group", m.gid())
+                        .unwrap_or_else(|| m.gid().to_string())
+                );
+                (!(user_ok && group_ok)).then(|| format!("belongs to {have} (expected {spec})"))
+            });
             if let Some(why) = problem {
                 bad += 1;
                 println!("{} {}: /{} — {}", ui.red("✗"), i.info.name, f.path, why);

@@ -98,6 +98,47 @@ pub fn euid() -> Option<u32> {
     line.split_whitespace().nth(2)?.parse().ok()
 }
 
+/// Effective group of this process.
+pub fn egid() -> Option<u32> {
+    let s = fs::read_to_string("/proc/self/status").ok()?;
+    let line = s.lines().find(|l| l.starts_with("Gid:"))?;
+    line.split_whitespace().nth(2)?.parse().ok()
+}
+
+/// One of the account databases of a root: `etc/passwd` or `etc/group`.
+fn account_lines(root: &Path, file: &str) -> Vec<Vec<String>> {
+    let Ok(rel) = resolve_in_root(root, file) else {
+        return vec![];
+    };
+    let Ok(text) = fs::read_to_string(root.join(rel)) else {
+        return vec![];
+    };
+    text.lines()
+        .filter(|l| !l.starts_with('#'))
+        .map(|l| l.split(':').map(str::to_string).collect::<Vec<_>>())
+        .filter(|f| f.len() >= 3)
+        .collect()
+}
+
+/// The id of a user (`etc/passwd`) or group (`etc/group`) of `root`.
+pub fn account_id(root: &Path, file: &str, name: &str) -> Option<u32> {
+    if name.is_empty() {
+        return None;
+    }
+    account_lines(root, file)
+        .into_iter()
+        .find(|f| f[0] == name)
+        .and_then(|f| f[2].parse().ok())
+}
+
+/// The name of a user or group id of `root`.
+pub fn account_name(root: &Path, file: &str, id: u32) -> Option<String> {
+    account_lines(root, file)
+        .into_iter()
+        .find(|f| f[2].parse::<u32>().ok() == Some(id))
+        .map(|f| f[0].clone())
+}
+
 pub fn ignore_missing(r: std::io::Result<()>) -> std::io::Result<()> {
     match r {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
@@ -116,6 +157,7 @@ extern "C" {
         value: *mut u8,
         size: usize,
     ) -> isize;
+    fn lchown(path: *const std::ffi::c_char, owner: u32, group: u32) -> i32;
     fn lsetxattr(
         path: *const std::ffi::c_char,
         name: *const std::ffi::c_char,
@@ -156,6 +198,17 @@ pub fn set_capability(p: &Path, value: &[u8]) -> std::io::Result<()> {
     // SAFETY: valid NUL-terminated strings; value is read for value.len() bytes.
     let r = unsafe { lsetxattr(path.as_ptr(), name.as_ptr(), value.as_ptr(), value.len(), 0) };
     if r != 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+/// Give `p` (not what it points to) to `uid`:`gid`. Clears the setuid and
+/// setgid bits and file capabilities: set those afterwards.
+pub fn set_owner(p: &Path, uid: u32, gid: u32) -> std::io::Result<()> {
+    let path = cstr(p)?;
+    // SAFETY: valid NUL-terminated string.
+    if unsafe { lchown(path.as_ptr(), uid, gid) } != 0 {
         return Err(std::io::Error::last_os_error());
     }
     Ok(())

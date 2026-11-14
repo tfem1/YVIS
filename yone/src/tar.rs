@@ -1,5 +1,6 @@
 //! Minimal, strict tar (ustar + GNU long names + pax path records).
-//! Writer output is reproducible: fixed mtime, uid/gid 0, sorted input.
+//! Writer output is reproducible: fixed mtime, sorted input, and owners as
+//! the caller sets them (root unless a file belongs to someone else).
 
 use std::io::{self, Read, Write};
 
@@ -13,6 +14,36 @@ pub enum Kind {
     Hardlink(String),
 }
 
+/// Who owns an entry. Names come first when the package is installed (ids
+/// differ between systems); the numbers are the fallback.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Owner {
+    pub uid: u32,
+    pub gid: u32,
+    pub user: String,
+    pub group: String,
+}
+
+impl Owner {
+    pub fn root() -> Owner {
+        Owner {
+            uid: 0,
+            gid: 0,
+            user: "root".into(),
+            group: "root".into(),
+        }
+    }
+
+    pub fn is_root(&self) -> bool {
+        self.uid == 0 && self.gid == 0 && self.user == "root" && self.group == "root"
+    }
+
+    /// `user:group` as recorded in the local database.
+    pub fn spec(&self) -> String {
+        format!("{}:{}", self.user, self.group)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Entry {
     pub path: String,
@@ -21,6 +52,7 @@ pub struct Entry {
     pub kind: Kind,
     /// Extended attributes from pax `SCHILY.xattr.<name>` records.
     pub xattrs: Vec<(String, Vec<u8>)>,
+    pub owner: Owner,
 }
 
 /// One pax extended-header record: "<len> <key>=<value>\n", where <len>
@@ -42,6 +74,8 @@ fn pax_record(key: &str, value: &[u8]) -> Vec<u8> {
 pub struct TarWriter<W: Write> {
     w: W,
     mtime: u64,
+    /// Owner of the next entries; extension records are always root's.
+    pub owner: Owner,
 }
 
 fn put_octal(buf: &mut [u8], v: u64) {
@@ -59,7 +93,11 @@ fn put_str(buf: &mut [u8], s: &str) {
 
 impl<W: Write> TarWriter<W> {
     pub fn new(w: W, mtime: u64) -> Self {
-        TarWriter { w, mtime }
+        TarWriter {
+            w,
+            mtime,
+            owner: Owner::root(),
+        }
     }
 
     fn raw_header(
@@ -77,11 +115,41 @@ impl<W: Write> TarWriter<W> {
                 "file too large for ustar",
             ));
         }
+        if name.starts_with("././@") {
+            return self.raw_header_as(name, prefix, mode, size, typ, link, &Owner::root());
+        }
+        let owner = self.owner.clone();
+        self.raw_header_as(name, prefix, mode, size, typ, link, &owner)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn raw_header_as(
+        &mut self,
+        name: &str,
+        prefix: &str,
+        mode: u32,
+        size: u64,
+        typ: u8,
+        link: &str,
+        owner: &Owner,
+    ) -> io::Result<()> {
+        if owner.uid > 0o7777777 || owner.gid > 0o7777777 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("{name}: owner id too large for ustar"),
+            ));
+        }
+        if owner.user.len() > 31 || owner.group.len() > 31 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("{name}: owner name longer than 31 bytes"),
+            ));
+        }
         let mut h = [0u8; BLOCK];
         put_str(&mut h[0..100], name);
         put_octal(&mut h[100..108], (mode & 0o7777) as u64);
-        put_octal(&mut h[108..116], 0);
-        put_octal(&mut h[116..124], 0);
+        put_octal(&mut h[108..116], owner.uid as u64);
+        put_octal(&mut h[116..124], owner.gid as u64);
         put_octal(&mut h[124..136], size);
         put_octal(&mut h[136..148], self.mtime);
         h[148..156].copy_from_slice(b"        ");
@@ -89,8 +157,8 @@ impl<W: Write> TarWriter<W> {
         put_str(&mut h[157..257], link);
         h[257..263].copy_from_slice(b"ustar\0");
         h[263..265].copy_from_slice(b"00");
-        put_str(&mut h[265..297], "root");
-        put_str(&mut h[297..329], "root");
+        put_str(&mut h[265..297], &owner.user);
+        put_str(&mut h[297..329], &owner.group);
         put_str(&mut h[345..500], prefix);
         let sum: u32 = h.iter().map(|&b| b as u32).sum();
         let s = format!("{:06o}\0 ", sum);
@@ -362,6 +430,12 @@ impl<R: Read> TarReader<R> {
                 None => cstr(&h[157..257])?,
             };
             let mode = parse_octal(&h[100..108])? as u32;
+            let owner = Owner {
+                uid: parse_octal(&h[108..116])? as u32,
+                gid: parse_octal(&h[116..124])? as u32,
+                user: cstr(&h[265..297])?,
+                group: cstr(&h[297..329])?,
+            };
             let kind = match typ {
                 b'0' | 0 | b'7' => Kind::File,
                 b'5' => Kind::Dir,
@@ -383,6 +457,7 @@ impl<R: Read> TarReader<R> {
                 size,
                 kind,
                 xattrs,
+                owner,
             }));
         }
     }
@@ -502,6 +577,40 @@ mod tests {
             e.xattrs.is_empty(),
             "attributes must not leak to the next entry"
         );
+    }
+
+    #[test]
+    fn owners_roundtrip() {
+        let mut tw = TarWriter::new(Vec::new(), 0);
+        tw.add_file("usr/bin/plain", 0o755, 0, &mut &b""[..])
+            .unwrap();
+        tw.owner = Owner {
+            uid: 0,
+            gid: 5,
+            user: "root".into(),
+            group: "tty".into(),
+        };
+        let long = format!("usr/share/{}/wall", "d".repeat(150));
+        tw.add_file(&long, 0o2755, 1, &mut &b"w"[..]).unwrap();
+        tw.owner = Owner::root();
+        tw.add_dir("var", 0o755).unwrap();
+        let data = tw.finish().unwrap();
+        let mut tr = TarReader::new(&data[..]);
+        let e = tr.next_entry().unwrap().unwrap();
+        assert!(e.owner.is_root());
+        let e = tr.next_entry().unwrap().unwrap();
+        assert_eq!((e.path.as_str(), e.mode), (long.as_str(), 0o2755));
+        assert_eq!(e.owner.spec(), "root:tty");
+        assert_eq!(e.owner.gid, 5);
+        let e = tr.next_entry().unwrap().unwrap();
+        assert!(
+            e.owner.is_root(),
+            "the owner must not leak to the next entry"
+        );
+
+        let mut tw = TarWriter::new(Vec::new(), 0);
+        tw.owner.group = "a-group-name-longer-than-31-bytes".into();
+        assert!(tw.add_dir("x", 0o755).is_err());
     }
 
     #[test]

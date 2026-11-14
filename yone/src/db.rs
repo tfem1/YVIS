@@ -15,6 +15,8 @@ pub struct FileRec {
     /// sha256 for files, target for symlinks, '-' for directories
     pub data: String,
     pub path: String,
+    /// `user:group` when it is not root's
+    pub owner: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -95,11 +97,17 @@ impl LocalDb {
             else {
                 bail!("{}:{}: corrupt file record", p.display(), n + 1);
             };
+            // mode, or mode/user:group for a file that is not root's
+            let (m, owner) = match m.split_once('/') {
+                Some((m, o)) => (m, Some(o.to_string())),
+                None => (m, None),
+            };
             out.push(FileRec {
                 kind: k.chars().next().unwrap_or('?'),
                 mode: u32::from_str_radix(m, 8).unwrap_or(0),
                 data: d.to_string(),
                 path: path.to_string(),
+                owner,
             });
         }
         Ok(out)
@@ -130,9 +138,14 @@ impl LocalDb {
         util::write_atomic(&dir.join("info"), info.as_bytes())?;
         let mut ft = String::new();
         for f in files {
+            let owner = f
+                .owner
+                .as_ref()
+                .map(|o| format!("/{o}"))
+                .unwrap_or_default();
             ft.push_str(&format!(
-                "{}\t{:o}\t{}\t{}\n",
-                f.kind, f.mode, f.data, f.path
+                "{}\t{:o}{}\t{}\t{}\n",
+                f.kind, f.mode, owner, f.data, f.path
             ));
         }
         util::write_atomic(&dir.join("files"), ft.as_bytes())?;

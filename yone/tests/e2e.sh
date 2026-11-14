@@ -349,6 +349,61 @@ out=$("$YONE" --root "$ROOT" build r/needs --out "$T/repo" --compress "$COMP" --
 grep -q "makedepends not installed: nosuchtool" <<<"$out" && ok "build warns about missing makedepends"
 rm -f "$T"/repo/needs-*
 
+echo "== file owners (names mapped to the target's own ids)"
+if [ "$(id -u)" = 0 ] && getent group tty >/dev/null && getent group disk >/dev/null && getent passwd nobody >/dev/null; then
+  mkdir -p "$ROOT/etc"
+  cp "$ROOT/etc/passwd" "$T/passwd.orig" 2>/dev/null || : > "$T/passwd.orig"
+  cp "$ROOT/etc/group" "$T/group.orig" 2>/dev/null || : > "$T/group.orig"
+  # same names, other ids than the build machine; no "disk" group at all
+  printf 'root:x:0:0:root:/root:/bin/bash\nnobody:x:99:99:nobody:/:/bin/false\n' > "$ROOT/etc/passwd"
+  printf 'root:x:0:\ntty:x:77:\nnogroup:x:99:\n' > "$ROOT/etc/group"
+  recipe r/owned <<'EOF2'
+name = owned
+version = 1.0
+@package
+install -Dm2755 -g tty /dev/null "$PKGDIR/usr/bin/wall"
+install -Dm644 -o nobody -g disk /dev/null "$PKGDIR/var/lib/owned/data"
+install -d -m 750 -g tty "$PKGDIR/var/lib/ttydir"
+install -Dm755 /dev/null "$PKGDIR/usr/bin/plain"
+EOF2
+  build r/owned; publish; "${Y[@]}" update >/dev/null
+  pkg=$(ls "$T"/repo/owned-1.0-1-*.yon)
+  listing=$(tar -tvf "$pkg")
+  grep -Eq '^-rwxr-sr-x root/tty .* usr/bin/wall$' <<<"$listing" && grep -Eq '^-rwxr-xr-x root/root .* usr/bin/plain$' <<<"$listing" \
+    && ok "the package records owners by name (root/tty), root's files as root"
+  "${Y[@]}" install owned > "$T/owned.log" 2>&1
+  [ "$(stat -c '%u:%g %a' "$ROOT/usr/bin/wall")" = "0:77 2755" ] \
+    && ok "installed with the target's id for tty (77), setgid kept after chown"
+  [ "$(stat -c '%u:%g %a' "$ROOT/var/lib/ttydir")" = "0:77 750" ] && ok "  ...directories too"
+  [ "$(stat -c %u "$ROOT/var/lib/owned/data")" = 99 ] && [ "$(stat -c %g "$ROOT/var/lib/owned/data")" = "$(getent group disk | cut -d: -f3)" ] \
+    && grep -q "group disk is unknown on the target system" "$T/owned.log" \
+    && ok "a user is mapped by name, an unknown group falls back to its id with a warning"
+  grep -q "^f	2755/root:tty	" "$ROOT/var/lib/yone/local/owned/files" && grep -q "^f	755	" "$ROOT/var/lib/yone/local/owned/files" \
+    && ok "the database records the owner of files that are not root's"
+  "${Y[@]}" verify owned >/dev/null && chgrp 0 "$ROOT/usr/bin/wall" && fails "${Y[@]}" verify owned
+  grep -q "usr/bin/wall — belongs to root:root (expected root:tty)" "$T/last.log" && ok "verify reports a changed owner"
+  "${Y[@]}" remove owned >/dev/null
+  # built by an ordinary user: what that user created is root's in the package
+  if command -v setpriv >/dev/null; then
+    # its own directory: $T is private to root
+    U=$(mktemp -d); chmod 755 "$U"
+    cp -r r/owned "$U/"; sed -i '/-g tty\|-o nobody/d' "$U/owned/YONEBUILD"
+    chown -R nobody "$U"
+    setpriv --reuid=nobody --regid="$(id -g nobody)" --clear-groups \
+      "$YONE" build "$U/owned" --out "$U/out" --compress "$COMP" --color never >/dev/null 2>&1
+    l=$(tar -tvf "$U"/out/owned-*.yon)
+    grep -Eq '^-rwxr-xr-x root/root .* usr/bin/plain$' <<<"$l" && ! grep -q nobody <<<"$l" \
+      && ok "built by another user, its files are root's in the package"
+    rm -rf "${U:?}"
+  else
+    echo "  - skipped (no setpriv)"; n=$((n + 1))
+  fi
+  rm -f "$T"/repo/owned-*; publish
+  cp "$T/passwd.orig" "$ROOT/etc/passwd"; cp "$T/group.orig" "$ROOT/etc/group"
+else
+  echo "  - skipped (needs root and the groups tty and disk)"; n=$((n + 7))
+fi
+
 echo "== hooks (run in the root through chroot)"
 if [ "$(id -u)" = 0 ] && file -L "$(command -v busybox 2>/dev/null || echo /nonexistent)" 2>/dev/null | grep -q 'statically linked'; then
   cp "$(command -v busybox)" "$T/busybox"
