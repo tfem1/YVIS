@@ -312,6 +312,33 @@ pub fn write_package(
     r
 }
 
+/// `backup = etc/` stands for every regular file the package has under
+/// etc/ (the configuration it ships, whatever `make install` put there).
+fn expand_backup(entries: &[String], pkgdir: &Path) -> Result<Vec<String>> {
+    let mut out: Vec<String> = vec![];
+    for b in entries {
+        if !b.ends_with('/') {
+            if !out.contains(b) {
+                out.push(b.clone());
+            }
+            continue;
+        }
+        let base = pkgdir.join(b.trim_end_matches('/'));
+        if !base.is_dir() {
+            continue;
+        }
+        let mut nodes = vec![];
+        walk(&base, "", &mut nodes)?;
+        for n in nodes.iter().filter(|n| n.meta.is_file()) {
+            let p = format!("{b}{}", n.rel);
+            if !out.contains(&p) {
+                out.push(p);
+            }
+        }
+    }
+    Ok(out)
+}
+
 pub struct BuildOpts<'a> {
     pub outdir: &'a Path,
     pub compression: &'a str,
@@ -426,6 +453,7 @@ pub fn build(dir: &Path, o: &BuildOpts, ui: &Ui) -> Result<PathBuf> {
     run_script(&r.package, &srcdir, &r, &srcdir, &pkgdir, epoch, "package")?;
 
     let mut info = r.info.clone();
+    info.backup = expand_backup(&info.backup, &pkgdir)?;
     info.builddate = epoch;
     info.packager = o.packager.clone();
     fs::create_dir_all(o.outdir)?;

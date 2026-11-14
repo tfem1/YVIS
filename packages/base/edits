@@ -1,0 +1,8 @@
+# Edits of the generated commands: <package><TAB><sed -E expression>.
+# An expression that changes nothing stops the generation (the book changed).
+#
+# bzip2's Makefile knows no DESTDIR: its PREFIX is where it installs.
+bzip2	s|^make PREFIX=/usr install DESTDIR="\$PKGDIR"$|make PREFIX="$PKGDIR"/usr install|
+# shadow: `useradd -D` writes /etc/default/useradd, which the next block
+# edits; --prefix makes it write the one in the package.
+shadow	s|^useradd -D --gid 999$|useradd --prefix "$PKGDIR" -D --gid 999|

@@ -1,0 +1,8 @@
+# The Info directory (/usr/share/info/dir) is rebuilt whenever a package
+# adds or removes a manual (book 8.72: the loop over /usr/share/info).
+install -d "$PKGDIR/usr/share/yone/hooks"
+cat > "$PKGDIR/usr/share/yone/hooks/30-info-dir.hook" <<'HOOK'
+desc = Updating the Info directory
+paths = usr/share/info/
+run = /usr/bin/bash -c 'cd /usr/share/info && rm -f dir && for f in *; do /usr/bin/install-info "$f" dir 2> /dev/null; done; true'
+HOOK

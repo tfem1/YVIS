@@ -1,0 +1,5 @@
+# The dynamic linker under the name programs ask for (chapter 5 makes these
+# links for the temporary system; the final glibc owns them).
+install -d "$PKGDIR/lib64"
+ln -sf ../lib/ld-linux-x86-64.so.2 "$PKGDIR/lib64/ld-linux-x86-64.so.2"
+ln -sf ../lib/ld-linux-x86-64.so.2 "$PKGDIR/lib64/ld-lsb-x86-64.so.3"

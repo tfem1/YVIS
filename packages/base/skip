@@ -1,0 +1,14 @@
+# Blocks of the book left out of the packages, in addition to lfs/skip:
+# <section id>#<block>.
+#
+# 7.6: /etc/hosts is shipped by yvis-base-files; the tester account only
+# exists for the test suites.
+ch-tools-createfiles#2
+ch-tools-createfiles#5
+# 8.32 GCC: the toolchain sanity checks run on the build machine (they are
+# lfs/verify.sh's job), they install nothing.
+ch-system-gcc#13
+ch-system-gcc#19
+# 8.72 Texinfo: regenerating /usr/share/info/dir is the Info hook's job
+# (packages/base/overrides/texinfo.post): no package owns that file.
+ch-system-texinfo#6

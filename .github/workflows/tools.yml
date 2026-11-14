@@ -3,9 +3,9 @@ name: tools
 
 on:
   push:
-    paths: ["lfs/**", "kernel/**", "system/**", "iso/**", "tools/**", ".github/workflows/tools.yml"]
+    paths: ["lfs/**", "kernel/**", "system/**", "iso/**", "packages/**", "tools/**", ".github/workflows/tools.yml"]
   pull_request:
-    paths: ["lfs/**", "kernel/**", "system/**", "iso/**", "tools/**", ".github/workflows/tools.yml"]
+    paths: ["lfs/**", "kernel/**", "system/**", "iso/**", "packages/**", "tools/**", ".github/workflows/tools.yml"]
   workflow_dispatch:
 
 permissions:
@@ -22,7 +22,12 @@ jobs:
         run: sudo YVIS_LFS_NO_APT=1 bash lfs/tests/build-runner.sh
       - name: GPU detection
         run: sh tools/tests/gpu-detect.sh
+      - name: Package recipes (generator rules, audit)
+        run: |
+          python3 -m unittest discover -s packages/tests -p 'test_*.py'
+          python3 packages/gen-base.py --out "$RUNNER_TEMP/recipes"
+          python3 packages/tests/audit-recipes.py "$RUNNER_TEMP/recipes"
       - name: Kernel configuration checker
         run: sh kernel/tests/check-config.sh
       - name: Shellcheck
-        run: shellcheck -S warning lfs/build.sh lfs/fetch-sources.sh lfs/verify.sh lfs/verify-yvis.sh kernel/boot-test.sh kernel/check-config.sh kernel/fetch-base-config.sh iso/build.sh iso/boot-test.sh system/initramfs/init tools/yvis-gpu-detect
+        run: shellcheck -S warning lfs/build.sh lfs/fetch-sources.sh lfs/verify.sh lfs/verify-yvis.sh kernel/boot-test.sh kernel/check-config.sh kernel/fetch-base-config.sh iso/build.sh iso/boot-test.sh system/initramfs/init lfs/book-commands.sh packages/build-all.sh packages/assemble.sh tools/yvis-gpu-detect

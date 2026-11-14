@@ -1,0 +1,115 @@
+# Builds the YVIS base as Yone packages and checks them: the recipes are
+# generated from the LFS book (packages/gen-base.py), built inside the
+# reference system of a `yvis-base`/`yvis-iso` run (read-only, under an
+# overlay that catches writes outside $PKGDIR), installed into an empty root
+# and compared with the reference, path by path.
+name: yvis-packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_run:
+        description: "Run id whose yvis-base artifact is the reference system"
+        type: string
+        required: true
+      only:
+        description: "Build only these packages (space separated; nothing is installed)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  LFS: /mnt/lfs
+
+jobs:
+  packages:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h / /mnt
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: yvis-base
+          path: ${{ runner.temp }}
+          run-id: ${{ inputs.base_run }}
+          github-token: ${{ github.token }}
+
+      - uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/sources
+          key: lfs-sources-${{ hashFiles('lfs/wget-list') }}
+
+      - name: Reference system and sources
+        run: |
+          sudo -E bash lfs/build.sh unpack "$RUNNER_TEMP"/yvis-base.tar.zst
+          sudo rm -f "$RUNNER_TEMP"/yvis-base.tar.zst
+          bash lfs/fetch-sources.sh "$RUNNER_TEMP/sources"
+
+      - name: Yone (static)
+        working-directory: yone
+        run: |
+          rustup target add x86_64-unknown-linux-musl
+          sudo apt-get update -qq && sudo apt-get install -y -qq musl-tools > /dev/null
+          cargo build --release --target x86_64-unknown-linux-musl
+          echo "YONE=$PWD/target/x86_64-unknown-linux-musl/release/yone" >> "$GITHUB_ENV"
+
+      - name: Recipes from the book
+        run: |
+          python3 -m unittest discover -s packages/tests -p 'test_*.py'
+          python3 packages/gen-base.py --out "$RUNNER_TEMP/recipes" \
+            --sources "$RUNNER_TEMP/sources" --build-id "${GITHUB_SHA::7}"
+          python3 packages/tests/audit-recipes.py "$RUNNER_TEMP/recipes"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yvis-recipes
+          path: ${{ runner.temp }}/recipes
+          retention-days: 14
+
+      - name: Build, install into an empty root
+        env:
+          ONLY: ${{ inputs.only }}
+        run: |
+          # shellcheck disable=SC2086  # a list of names
+          sudo -E YONE="$YONE" bash packages/build-all.sh "$LFS" "$RUNNER_TEMP/recipes" \
+            "$RUNNER_TEMP/sources" "$RUNNER_TEMP/work" $ONLY
+
+      - name: Compare with the reference
+        if: inputs.only == ''
+        run: |
+          set -o pipefail
+          sudo python3 packages/compare.py "$LFS" "$RUNNER_TEMP/work/root/target" "$RUNNER_TEMP/work/report" \
+            | tee "$RUNNER_TEMP/compare-summary.txt"
+          { echo '## Packages installed vs. reference'; echo '```'; cat "$RUNNER_TEMP/compare-summary.txt"; echo '```'; } \
+            >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Collect
+        if: always()
+        run: |
+          sudo tar -C "$RUNNER_TEMP/work" -czf "$RUNNER_TEMP/yvis-packages-logs.tar.gz" logs $(cd "$RUNNER_TEMP/work" && ls -d report 2>/dev/null)
+          sudo chmod -R a+rX "$RUNNER_TEMP/work/repo" 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: yvis-packages-logs
+          path: ${{ runner.temp }}/yvis-packages-logs.tar.gz
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: yvis-repo
+          path: ${{ runner.temp }}/work/repo
+          compression-level: 0
+          if-no-files-found: ignore
+          retention-days: 14

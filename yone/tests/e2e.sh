@@ -431,6 +431,25 @@ fails "$YONE" build r/nxbad --out "$T/repo" --color never
 grep -q "noextract: missing.tar.gz is not one of the sources" "$T/last.log" && ok "noextract must name one of the sources"
 rm -f "$T"/repo/nx-*; publish
 
+echo "== backup = etc/: every configuration file of the package"
+recipe r/confdir <<'EOF2'
+name = confdir
+version = 1.0
+backup = etc/
+backup = usr/share/confdir/extra.conf
+@package
+install -Dm644 /dev/null "$PKGDIR/etc/confdir/a.conf"
+install -Dm644 /dev/null "$PKGDIR/etc/confdir/sub/b.conf"
+ln -s a.conf "$PKGDIR/etc/confdir/link.conf"
+install -Dm644 /dev/null "$PKGDIR/usr/share/confdir/extra.conf"
+install -Dm644 /dev/null "$PKGDIR/usr/share/confdir/data"
+EOF2
+build r/confdir
+backups=$(tar -xOf "$T"/repo/confdir-1.0-1-*.yon .YONEINFO | sed -n 's/^backup = //p' | tr ' ' '\n' | sort | tr '\n' ' ')
+[ "$backups" = "etc/confdir/a.conf etc/confdir/sub/b.conf usr/share/confdir/extra.conf " ] \
+  && ok "backup = etc/ lists every regular file under etc/ (not links), next to explicit entries"
+rm -f "$T"/repo/confdir-*; publish
+
 echo "== hooks (run in the root through chroot)"
 if [ "$(id -u)" = 0 ] && file -L "$(command -v busybox 2>/dev/null || echo /nonexistent)" 2>/dev/null | grep -q 'statically linked'; then
   cp "$(command -v busybox)" "$T/busybox"
