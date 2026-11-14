@@ -87,7 +87,9 @@ jobs:
         if: inputs.only == ''
         run: |
           set -o pipefail
-          sudo python3 packages/compare.py "$LFS" "$RUNNER_TEMP/work/root/target" "$RUNNER_TEMP/work/report" \
+          # build-all.sh unmounts the overlay when it ends: the installed root it
+          # made is in the overlay's upper layer.
+          sudo python3 packages/compare.py "$LFS" "$RUNNER_TEMP/work/upper/target" "$RUNNER_TEMP/work/report" \
             | tee "$RUNNER_TEMP/compare-summary.txt"
           { echo '## Packages installed vs. reference'; echo '```'; cat "$RUNNER_TEMP/compare-summary.txt"; echo '```'; } \
             >> "$GITHUB_STEP_SUMMARY"
