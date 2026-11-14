@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YVIS</title>
+<meta name="description" content="YVIS: a Linux distribution built from source on Linux From Scratch, with its own package manager, Yone.">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#13101C">
+<link rel="icon" href="yvis-icon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --bg: #13101C;
+    --fg: #EDEAF5;
+    --muted: #9A93AD;
+    --line: #2A2440;
+    --violet: #8B5CF6;
+    --violet-soft: #B79BFF;
+    --code: #1B1727;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 17px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  main { max-width: 640px; margin: 0 auto; padding: 72px 20px 48px; }
+  a { color: var(--violet-soft); text-decoration: none; border-bottom: 1px solid #4A3A80; }
+  a:hover { border-bottom-color: var(--violet-soft); }
+  header { display: flex; align-items: center; gap: 6px; margin-left: -8px; }
+  header img { width: 52px; height: 52px; }
+  header h1 { font-size: 28px; letter-spacing: 0.18em; margin: 0; font-weight: 700; }
+  .lead { font-size: 21px; line-height: 1.45; margin: 40px 0 8px; }
+  .sub { color: var(--muted); margin: 0; }
+  h2 {
+    font-size: 13px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--muted); margin: 56px 0 14px;
+  }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li { padding: 9px 0; border-top: 1px solid var(--line); display: flex; gap: 14px; }
+  li:last-child { border-bottom: 1px solid var(--line); }
+  li b { font-weight: 600; min-width: 128px; flex-shrink: 0; }
+  li span { color: var(--muted); }
+  .tag {
+    display: inline-block; font-size: 12px; font-weight: 600; letter-spacing: 0.06em;
+    padding: 2px 9px; border-radius: 99px; border: 1px solid var(--violet); color: var(--violet-soft);
+    margin-top: 28px;
+  }
+  pre {
+    background: var(--code); border: 1px solid var(--line); border-radius: 10px;
+    padding: 16px 18px; overflow-x: auto; margin: 0;
+    font: 14px/1.7 ui-monospace, "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  }
+  pre .p { color: var(--violet); user-select: none; }
+  pre .c { color: var(--muted); }
+  .download {
+    border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px;
+  }
+  .download p { margin: 0; }
+  .download p + p { margin-top: 8px; color: var(--muted); }
+  footer {
+    margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line);
+    color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 20px;
+  }
+  footer a { color: var(--muted); border-bottom-color: var(--line); }
+  @media (max-width: 520px) {
+    main { padding-top: 48px; }
+    .lead { font-size: 19px; }
+    li { flex-direction: column; gap: 0; }
+    li b { min-width: 0; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="yvis-icon.svg" alt="">
+    <h1>YVIS</h1>
+  </header>
+
+  <p class="lead">A Linux distribution built from source, with its own package manager.</p>
+  <p class="sub">Linux From Scratch 13.1 with systemd. Rolling release, prebuilt binaries, for people who like to know what is on their machine.</p>
+
+  <span class="tag">IN DEVELOPMENT</span>
+
+  <h2>Works today</h2>
+  <ul>
+    <li><b>Base system</b><span>Every package of the book built from source in CI, then checked.</span></li>
+    <li><b>Live ISO</b><span>Boots on BIOS and UEFI, from a disc, a USB stick or a Ventoy stick.</span></li>
+    <li><b>Yone</b><span>Signed packages, atomic installs, file verification. Written in Rust.</span></li>
+  </ul>
+
+  <h2>Coming</h2>
+  <ul>
+    <li><b>Desktops</b><span>KDE Plasma, minimal. Hyprland, with its author's dotfiles.</span></li>
+    <li><b>Apps</b><span>Flatpak with Flathub. Firefox, kitty.</span></li>
+    <li><b>Hardware</b><span>NVIDIA open modules. Firmware is the only non-free part.</span></li>
+    <li><b>Installer</b><span>ext4, optional encryption, zram.</span></li>
+  </ul>
+
+  <h2>Yone</h2>
+<pre><span class="p">$ </span>sudo yone update      <span class="c"># signed repository indexes</span>
+<span class="p">$ </span>sudo yone install kitty
+<span class="p">$ </span>sudo yone upgrade
+<span class="p">$ </span>sudo yone verify      <span class="c"># every installed file, checked</span></pre>
+
+  <h2>Download</h2>
+  <div class="download">
+    <p>No image yet.</p>
+    <p>The first public ISO comes out when a desktop boots. Until then, you can build it yourself: <a href="https://github.com/tfem1/YVIS/blob/main/BUILDING.md">BUILDING.md</a>.</p>
+  </div>
+
+  <footer>
+    <a href="https://github.com/tfem1/YVIS">Source</a>
+    <a href="https://github.com/tfem1/YVIS/blob/main/ROADMAP.md">Roadmap</a>
+    <a href="https://github.com/tfem1/YVIS/blob/main/DECISIONS.md">Decisions</a>
+    <span>No tracking, no cookies.</span>
+  </footer>
+</main>
+</body>
+</html>

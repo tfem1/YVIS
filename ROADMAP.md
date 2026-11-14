@@ -50,7 +50,7 @@ is then packed and installed through the package manager. Plan:
 | 10b | Hyprland + Quickshell + user dotfiles (`yvis-hyprland-config`), selectable in SDDM | 🔨 dotfiles support YVIS (branch `yvis` of tfem1/dotfiles: install via Yone, updates via `yone check-updates`, YVIS themes) |
 | 11 | Flatpak + Flathub preconfigured + portals (KDE and Hyprland) | ⏳ |
 | 12 | Logo approved and branding integrated (Fastfetch, SDDM, boot, KDE) | 🔨 Fastfetch ASCII supplied by the user |
-| 13 | Live ISO ≤ 2 GiB, measured in CI, boot menu: default / NVIDIA / safe graphics | ⏳ |
+| 13 | Live ISO (over 2 GiB allowed: hosted on SourceForge), measured in CI, boot menu: default / NVIDIA / safe graphics | ⏳ |
 
 ## v0.3.0 — "installable"
 

@@ -23,8 +23,8 @@ changing one is a decision of the same kind, recorded here.
 | Administration | sudo |
 | Gaming | A profile (Steam, Proton, GameMode, MangoHud) after the desktops work |
 | NVIDIA | Open kernel modules (GTX 1650 and later); older cards use nouveau |
-| ISO over 2 GiB | Two ISOs (KDE, Hyprland) rather than a larger one or a download |
-| Hosting | GitHub for packages and ISOs |
+| ISO over 2 GiB | Allowed (changed 2026-11-14): one ISO may exceed 2 GiB |
+| Hosting | Packages on GitHub; ISOs on SourceForge (no per-file limit), GitHub Releases for files under 2 GiB; a minimal site on GitHub Pages (`site/`) |
 | Publication | Public development ISOs as soon as a desktop boots |
 | Code name | None |
 | Extras wanted | zram, a welcome screen at first start, the gaming profile |
