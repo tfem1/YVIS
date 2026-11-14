@@ -22,6 +22,8 @@ Status legend: ✅ done and tested · 🔨 in progress · ⏳ not started
 | 7b | Kernel build tree for out-of-tree modules (NVIDIA) | ⏳ |
 | 8 | Console live ISO, BIOS and UEFI, disc and USB stick, booted in QEMU by `iso/boot-test.sh` | ✅ run 43478718718: 553 MiB, the four boots pass |
 | 8a | Yone inside the ISO; first boot on real hardware | ⏳ |
+| 8b | Ventoy: the ISO file on a Ventoy stick | 🔨 BIOS ✅ (run 43589068755: Ventoy 1.1.18, found by Ventoy's record on exFAT, every check passes); UEFI: Ventoy's GRUB 2.04 cannot load the kernel ("cannot load image"), under study |
+| 8c | Installer (`installer/`): local web page, unattended mode, install test in QEMU (UEFI and BIOS) | 🔨 written and unit-tested; first install test in run 43590896889 |
 
 ### Packaging the base (6c)
 

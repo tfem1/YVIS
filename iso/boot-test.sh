@@ -137,8 +137,12 @@ s.sendall(b"screendump " + sys.argv[2].encode() + b"\n"); time.sleep(3)' \
     sed 's/^/  | qemu: /' "$work/$name.qemu" | head -n 20
   fi
   if [ "$bad" -ne 0 ]; then
+    # Ventoy's menus draw over the whole screen: the whole console, cleaned
+    local lines=40
+    [ "$medium" != ventoy ] || lines=200
     echo "  ---- last lines of its console"
-    tail -n 40 "$work/$name.console" 2> /dev/null | tr -d '\r' | sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g; s/^/  | /' || true
+    tr -d '\r' < "$work/$name.console" 2> /dev/null | sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g; s/\x1b[()][A-Z0-9]//g' \
+      | tr -s ' ' | grep -av '^ *$' | uniq | tail -n "$lines" | cut -c1-180 | sed 's/^/  | /' || true
     if [ -s "$work/$name.ppm" ]; then
       echo "  ---- its screen before the time limit"
       python3 "$(dirname "$0")/screenshot.py" "$work/$name.ppm" || true
@@ -165,6 +169,24 @@ if [ "$fail" -ne 0 ]; then
     > /dev/null 2>&1 || true
   sed 's/\r$//; s/\x1b\[[0-9;?]*[a-zA-Z]//g' "$work/diagnosis.console" | grep -av '^$' | tail -n 70 | cut -c1-200
   echo "---- its report"; cut -c1-200 "$work/diagnosis.report" || true
+  if [ -e "$ovmf/OVMF_CODE_4M.fd" ] && grep -q 'uefi-ventoy' <<< "${YVIS_BOOT_CASES:-}"; then
+    # Does the firmware itself accept the kernel as an EFI program? (Ventoy's
+    # GRUB hands it to the firmware's LoadImage.) The kernel alone, as the
+    # fallback boot program of a FAT disk: "EFI stub" messages mean yes.
+    echo "==> diagnosis: the kernel started by the UEFI firmware itself (EFI stub)"
+    esp=$work/stub.img
+    rm -f "$esp"; truncate -s 64M "$esp"; mkfs.vfat "$esp" > /dev/null
+    mmd -i "$esp" ::/EFI ::/EFI/BOOT
+    mcopy -i "$esp" "$work/files/vmlinuz" ::/EFI/BOOT/BOOTX64.EFI
+    cp "$ovmf/OVMF_VARS_4M.fd" "$work/stub.vars"
+    timeout 240 qemu-system-x86_64 -accel tcg,thread=multi -cpu qemu64 -smp 2 -m 2048 -machine q35 \
+      -drive "if=pflash,format=raw,readonly=on,file=$ovmf/OVMF_CODE_4M.fd" \
+      -drive "if=pflash,format=raw,file=$work/stub.vars" \
+      -drive "file=$esp,format=raw" -display none -serial "file:$work/stub.console" -no-reboot \
+      > "$work/stub.qemu" 2>&1 || true
+    tr -d '\r' < "$work/stub.console" | sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g' | grep -av '^ *$' \
+      | grep -aiE 'stub|load|error|panic|BdsDxe|Linux version|Command line' | head -n 30 | cut -c1-180 | sed 's/^/  | /'
+  fi
   echo "ISO boot test: $fail of the boots FAILED"
   exit 1
 fi
