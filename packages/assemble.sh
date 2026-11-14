@@ -6,8 +6,8 @@
 #
 #   8.27 Shadow    accounts in /etc/shadow and /etc/gshadow (pwconv, grpconv),
 #                  defaults of useradd
-#   8.77 Systemd   services enabled per the presets, including YVIS's
-#   9  (YVIS)      no waiting for the network at boot
+#   8.77 Systemd   services enabled per the presets, including GraveyardOS's
+#   9  (GraveyardOS)      no waiting for the network at boot
 # The shared library cache and the Info directory are rebuilt by Yone's
 # hooks as packages are installed; the machine id is created at first boot.
 set -euo pipefail

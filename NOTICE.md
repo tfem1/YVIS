@@ -1,6 +1,6 @@
 # Notices
 
-YVIS is © 2026 tfem1, under the GNU General Public License version 3 or
+GraveyardOS is © 2026 tfem1, under the GNU General Public License version 3 or
 later (`LICENSE`), except the name and logo (`TRADEMARKS.md`).
 
 ## Work of others in this repository
@@ -10,7 +10,7 @@ later (`LICENSE`), except the name and logo (`TRADEMARKS.md`).
   13.1-systemd and BLFS 13.1-systemd books (Gerard Beekmans and the LFS
   editors). The books' text is under the Creative Commons BY-NC-SA 2.0
   license and is not copied here; their computer instructions, which is
-  what YVIS extracts, may be used under the MIT License (LFS appendix D):
+  what GraveyardOS extracts, may be used under the MIT License (LFS appendix D):
 
   > Copyright © 1999-2026 Gerard Beekmans
   >
@@ -36,11 +36,11 @@ later (`LICENSE`), except the name and logo (`TRADEMARKS.md`).
 ## In the ISO
 
 The ISO is a collection of programs, each under its own license (the GNU
-GPL, LGPL, MIT, BSD and others); YVIS changes none of them. Their sources are
+GPL, LGPL, MIT, BSD and others); GraveyardOS changes none of them. Their sources are
 the tarballs listed with their SHA-256 in `lfs/sources.sha256`, downloaded
 from the projects' own sites, and the build commands are in this repository:
 together they are the corresponding source of every binary in the ISO. The
 license files of each program are installed in the system, under
 `/usr/share/doc` and `/usr/share/licenses` where the program provides them.
-The only non-free part YVIS intends to ship is device firmware, from the
+The only non-free part GraveyardOS intends to ship is device firmware, from the
 linux-firmware project, under the licenses it carries.

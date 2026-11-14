@@ -61,7 +61,7 @@ class Rewrite(unittest.TestCase):
 
     def test_system_setup_is_not_package_content(self):
         for line in ("systemctl preset-all", "pwconv", "install-info --dir-file=/usr/share/info/dir x"):
-            self.assertTrue(self.r(line).startswith("# YVIS: not package content"), line)
+            self.assertTrue(self.r(line).startswith("# GraveyardOS: not package content"), line)
 
     def test_names_and_versions(self):
         self.assertEqual(gen.version_of("8.89 Libelf from Elfutils-0.195"), "0.195")

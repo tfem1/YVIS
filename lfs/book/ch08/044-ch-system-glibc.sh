@@ -137,7 +137,7 @@ unset ZONEINFO tz
 # --- block 20: SKIPPED (interactive)
 # tzselect
 
-# --- block 21 (YVIS values from lfs/values: <xxx>=UTC)
+# --- block 21 (GraveyardOS values from lfs/values: <xxx>=UTC)
 ln -sfv /usr/share/zoneinfo/UTC /etc/localtime
 
 # --- block 22

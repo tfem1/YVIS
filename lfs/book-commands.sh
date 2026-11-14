@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# The book's commands for one section as YVIS runs them, shared by
+# The book's commands for one section as GraveyardOS runs them, shared by
 # lfs/build.sh and packages/gen-base.py. Expects HERE (the lfs/ directory)
 # and a die function.
 

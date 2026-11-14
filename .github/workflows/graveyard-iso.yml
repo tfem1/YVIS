@@ -1,17 +1,17 @@
-# Builds the live ISO from a YVIS base (artifact yvis-base of a `yvis-base`
-# or `yvis-iso` run): initramfs, system image, GRUB for BIOS and UEFI; then
+# Builds the live ISO from a GraveyardOS base (artifact graveyard-base of a `graveyard-base`
+# or `graveyard-iso` run): initramfs, system image, GRUB for BIOS and UEFI; then
 # boots it in QEMU as a disc and as a USB stick with both firmwares.
-name: yvis-iso
+name: graveyard-iso
 
 on:
   workflow_dispatch:
     inputs:
       base_run:
-        description: "Run id whose yvis-base artifact is the system to put on the ISO"
+        description: "Run id whose graveyard-base artifact is the system to put on the ISO"
         type: string
         required: true
       redo:
-        description: "Sections of lfs/yvis to build again although they are done (e.g. yvis-initramfs)"
+        description: "Sections of lfs/graveyard to build again although they are done (e.g. graveyard-initramfs)"
         type: string
         default: ""
 
@@ -36,21 +36,21 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: yvis-base
+          name: graveyard-base
           path: ${{ runner.temp }}
           run-id: ${{ inputs.base_run }}
           github-token: ${{ github.token }}
 
       - name: Restore $LFS
         run: |
-          sudo -E bash lfs/build.sh unpack "$RUNNER_TEMP"/yvis-base.tar.zst
-          sudo rm -f "$RUNNER_TEMP"/yvis-base.tar.zst
+          sudo -E bash lfs/build.sh unpack "$RUNNER_TEMP"/graveyard-base.tar.zst
+          sudo rm -f "$RUNNER_TEMP"/graveyard-base.tar.zst
           sudo mkdir -p "$LFS/sources"
-          sudo bash lfs/yvis/fetch-sources.sh "$LFS/sources"
+          sudo bash lfs/graveyard/fetch-sources.sh "$LFS/sources"
           sudo ln -sf bash /bin/sh
 
-      - name: Initramfs and what else lfs/yvis holds (new sections run, done ones are kept)
-        run: sudo -E YVIS_REDO="${{ inputs.redo }}" bash lfs/build.sh run ch09 ch10
+      - name: Initramfs and what else lfs/graveyard holds (new sections run, done ones are kept)
+        run: sudo -E GRAVEYARD_REDO="${{ inputs.redo }}" bash lfs/build.sh run ch09 ch10
 
       - name: Verify the system
         run: sudo -E bash lfs/build.sh verify
@@ -58,42 +58,42 @@ jobs:
       - name: Pack
         if: always()
         run: |
-          sudo -E bash lfs/build.sh pack "$RUNNER_TEMP/yvis-base.tar.zst"
-          sudo tar -C "$LFS/.yvis" -czf "$RUNNER_TEMP/yvis-base-logs.tar.gz" logs
+          sudo -E bash lfs/build.sh pack "$RUNNER_TEMP/graveyard-base.tar.zst"
+          sudo tar -C "$LFS/.graveyard" -czf "$RUNNER_TEMP/graveyard-base-logs.tar.gz" logs
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: yvis-base
-          path: ${{ runner.temp }}/yvis-base.tar.zst
+          name: graveyard-base
+          path: ${{ runner.temp }}/graveyard-base.tar.zst
           compression-level: 0
           retention-days: 14
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: yvis-base-logs
-          path: ${{ runner.temp }}/yvis-base-logs.tar.gz
+          name: graveyard-base-logs
+          path: ${{ runner.temp }}/graveyard-base-logs.tar.gz
           retention-days: 14
 
       - name: Build the ISO
         run: |
-          sudo rm -f "$RUNNER_TEMP/yvis-base.tar.zst"
+          sudo rm -f "$RUNNER_TEMP/graveyard-base.tar.zst"
           sudo apt-get update -qq
           sudo apt-get install -y -qq squashfs-tools xorriso mtools dosfstools qemu-system-x86 ovmf > /dev/null
           sudo -E bash iso/build.sh "$RUNNER_TEMP/iso" | tee "$RUNNER_TEMP/iso-build.txt"
           sudo chmod -R a+rX "$RUNNER_TEMP/iso"
           {
-            echo "## YVIS live ISO"
+            echo "## GraveyardOS live ISO"
             echo '```'
-            grep -A3 'yvis-.*\.iso$' "$RUNNER_TEMP/iso-build.txt" | sed 's/\x1b\[[0-9;]*m//g'
+            grep -A3 'graveyard-.*\.iso$' "$RUNNER_TEMP/iso-build.txt" | sed 's/\x1b\[[0-9;]*m//g'
             cat "$RUNNER_TEMP"/iso/*.sha256
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: yvis-iso
+          name: graveyard-iso
           path: |
             ${{ runner.temp }}/iso/*.iso
             ${{ runner.temp }}/iso/*.sha256
@@ -101,7 +101,7 @@ jobs:
           retention-days: 14
 
       - name: Boot the ISO (disc and USB stick, BIOS and UEFI)
-        run: bash iso/boot-test.sh "$RUNNER_TEMP"/iso/yvis-*.iso "$RUNNER_TEMP/boot"
+        run: bash iso/boot-test.sh "$RUNNER_TEMP"/iso/graveyard-*.iso "$RUNNER_TEMP/boot"
 
       # The same ISO copied to a stick prepared with the current Ventoy release,
       # which boots it by itself (iso/ventoy-stick.sh), with both firmwares.
@@ -111,11 +111,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           sudo apt-get install -y -qq exfatprogs > /dev/null
-          sudo GH_TOKEN="$GH_TOKEN" bash iso/ventoy-stick.sh "$(ls "$RUNNER_TEMP"/iso/yvis-*.iso)" "$RUNNER_TEMP/ventoy.img"
+          sudo GH_TOKEN="$GH_TOKEN" bash iso/ventoy-stick.sh "$(ls "$RUNNER_TEMP"/iso/graveyard-*.iso)" "$RUNNER_TEMP/ventoy.img"
           sudo chown "$(id -u):$(id -g)" "$RUNNER_TEMP/ventoy.img"  # QEMU writes to the stick
           echo "Ventoy $(cat "$RUNNER_TEMP/ventoy.img.ventoy-version")" >> "$GITHUB_STEP_SUMMARY"
-          YVIS_VENTOY_IMG="$RUNNER_TEMP/ventoy.img" YVIS_BOOT_CASES="bios-ventoy uefi-ventoy" \
-            bash iso/boot-test.sh "$(ls "$RUNNER_TEMP"/iso/yvis-*.iso)" "$RUNNER_TEMP/boot"
+          GRAVEYARD_VENTOY_IMG="$RUNNER_TEMP/ventoy.img" GRAVEYARD_BOOT_CASES="bios-ventoy uefi-ventoy" \
+            bash iso/boot-test.sh "$(ls "$RUNNER_TEMP"/iso/graveyard-*.iso)" "$RUNNER_TEMP/boot"
 
       # The installer, unattended, onto an empty virtual disk; then the
       # installed system started from that disk alone (iso/install-test.sh).
@@ -123,12 +123,12 @@ jobs:
         if: always()
         run: |
           command -v qemu-img > /dev/null || sudo apt-get install -y -qq qemu-utils > /dev/null
-          bash iso/install-test.sh "$(ls "$RUNNER_TEMP"/iso/yvis-*.iso)" "$RUNNER_TEMP/install" uefi bios
+          bash iso/install-test.sh "$(ls "$RUNNER_TEMP"/iso/graveyard-*.iso)" "$RUNNER_TEMP/install" uefi bios
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: yvis-iso-boot-reports
+          name: graveyard-iso-boot-reports
           path: |
             ${{ runner.temp }}/boot/*.report
             ${{ runner.temp }}/boot/*.console

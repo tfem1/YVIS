@@ -3,7 +3,7 @@
 # source: https://www.linuxfromscratch.org/lfs/view/13.1-systemd/chapter08/groff.html
 # package: groff-1.24.1.tar.gz
 
-# --- block 1 (YVIS values from lfs/values: <paper_size>=A4)
+# --- block 1 (GraveyardOS values from lfs/values: <paper_size>=A4)
 PAGE=A4 ./configure --prefix=/usr
 
 # --- block 2

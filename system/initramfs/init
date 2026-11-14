@@ -1,25 +1,25 @@
 #!/bin/bash
-# YVIS initramfs: the first program the kernel runs. It loads the drivers of
+# GraveyardOS initramfs: the first program the kernel runs. It loads the drivers of
 # the storage present (udev), mounts the root file system on /sysroot and
 # hands over to systemd.
 #
 #   root=UUID=… | LABEL=… | PARTUUID=… | PARTLABEL=… | /dev/…   installed system
-#   yvis.live=<label>    live system: the medium with that label holds
-#                        /yvis/rootfs.sfs, mounted read-only under a
+#   graveyard.live=<label>    live system: the medium with that label holds
+#                        /graveyard/rootfs.sfs, mounted read-only under a
 #                        writable layer kept in memory. The medium is a
 #                        disc or USB stick with that label, or the ISO file
-#                        Ventoy booted (see below), or the file yvis.iso
+#                        Ventoy booted (see below), or the file graveyard.iso
 #                        names on any partition
-#   yvis.iso=<path>      the ISO is a file, for boot managers that boot an
+#   graveyard.iso=<path>      the ISO is a file, for boot managers that boot an
 #                        ISO file through GRUB's loopback (path from the
 #                        root of its partition)
-#   yvis.break           stop in a shell before leaving the initramfs
+#   graveyard.break           stop in a shell before leaving the initramfs
 #   ro | rw, rootflags=, rootfstype=, init=   as usual
 #
-# Built by yvis-mkinitramfs from the installed system's own programs.
+# Built by graveyard-mkinitramfs from the installed system's own programs.
 export PATH=/usr/bin:/usr/sbin
 
-say() { echo "yvis-initramfs: $*"; }
+say() { echo "graveyard-initramfs: $*"; }
 
 # Something is missing: explain, and give a shell rather than a panic.
 # Leaving the shell retries.
@@ -52,9 +52,9 @@ for arg in $(cat /proc/cmdline); do
     init=*) init=${arg#init=} ;;
     ro) mode=ro ;;
     rw) mode=rw ;;
-    yvis.live=*) live=${arg#yvis.live=} ;;
-    yvis.iso=*) iso=${arg#yvis.iso=} ;;
-    yvis.break) stop=yes ;;
+    graveyard.live=*) live=${arg#graveyard.live=} ;;
+    graveyard.iso=*) iso=${arg#graveyard.iso=} ;;
+    graveyard.break) stop=yes ;;
   esac
 done
 
@@ -101,7 +101,7 @@ device_of() { # root= value
 #    doc_compatible_format.html): an EFI variable with UEFI firmware, low
 #    memory with a BIOS. The file is on a partition of the Ventoy stick
 #    (exFAT, NTFS, FAT, ext4, XFS or UDF); it is attached to a loop device.
-# 3. yvis.iso=<path>: that file on any partition.
+# 3. graveyard.iso=<path>: that file on any partition.
 # Whatever is found must carry the medium's label.
 
 VTOY_SIG=20207777772e76656e746f792e6e6574   # "  www.ventoy.net"
@@ -122,7 +122,7 @@ ventoy_record() {
   fi
   if [ "${hex:0:32}" != "$VTOY_SIG" ]; then
     # BIOS: in low memory, which only mmap can read (vtoy-param.c)
-    hex=$(/usr/lib/yvis/vtoy-param 2> /dev/null) || return 1
+    hex=$(/usr/lib/graveyard/vtoy-param 2> /dev/null) || return 1
   fi
   [ ${#hex} -eq 1024 ] && [ "${hex:0:32}" = "$VTOY_SIG" ] || return 1
   sum=0
@@ -164,7 +164,7 @@ ventoy_medium() {
 
 # Attach <path> of the partition <dev> to a loop device; prints the device.
 iso_file_on() { # device, path, [type]
-  local mnt=/run/yvis/host loop
+  local mnt=/run/graveyard/host loop
   mkdir -p "$mnt"
   if ! mountpoint -q "$mnt"; then
     [ -z "${3:-}" ] || modprobe "$3" 2> /dev/null
@@ -179,7 +179,7 @@ iso_file_on() { # device, path, [type]
   return 1
 }
 
-# yvis.iso=<path>: look on every partition that has a file system.
+# graveyard.iso=<path>: look on every partition that has a file system.
 iso_on_partitions() {
   local dev
   for dev in $(blkid -c /dev/null -o device 2> /dev/null); do
@@ -200,28 +200,28 @@ find_medium() { # prints the device and records how it was found
   while [ "$n" -lt 40 ]; do
     dev=$(blkid -c /dev/null -l -o device -t LABEL="$live" 2> /dev/null)
     if [ -n "$dev" ]; then
-      echo label > /run/yvis/found-by
+      echo label > /run/graveyard/found-by
       echo "$dev"
       return 0
     fi
     if rec=$(ventoy_record) && dev=$(ventoy_medium "$rec"); then
       if has_label "$dev"; then
-        echo ventoy > /run/yvis/found-by
+        echo ventoy > /run/graveyard/found-by
         echo "$dev"
         return 0
       fi
       say "the ISO Ventoy booted is not the medium '$live'" >&2
       losetup -d "$dev"
-      umount /run/yvis/host 2> /dev/null
+      umount /run/graveyard/host 2> /dev/null
     fi
     if [ -n "$iso" ] && dev=$(iso_on_partitions); then
       if has_label "$dev"; then
-        echo iso-file > /run/yvis/found-by
+        echo iso-file > /run/graveyard/found-by
         echo "$dev"
         return 0
       fi
       losetup -d "$dev"
-      umount /run/yvis/host 2> /dev/null
+      umount /run/graveyard/host 2> /dev/null
     fi
     sleep 1
     n=$((n + 1))
@@ -234,28 +234,28 @@ find_medium() { # prints the device and records how it was found
 }
 
 mount_live() {
-  local dev m=/run/yvis
+  local dev m=/run/graveyard
   modprobe -a loop squashfs overlay 2> /dev/null
   mkdir -p $m/medium $m/system $m/changes
   if ! mountpoint -q $m/medium; then
     dev=$(find_medium) || { rescue "no medium labelled '$live' was found (disc, USB stick, Ventoy)"; return 1; }
     mount -t iso9660 -o ro "$dev" $m/medium || { rescue "cannot mount the medium $dev"; return 1; }
   fi
-  [ -f $m/medium/yvis/rootfs.sfs ] || { rescue "the medium has no /yvis/rootfs.sfs"; return 1; }
-  mountpoint -q $m/system || mount -t squashfs -o ro,loop $m/medium/yvis/rootfs.sfs $m/system \
+  [ -f $m/medium/graveyard/rootfs.sfs ] || { rescue "the medium has no /graveyard/rootfs.sfs"; return 1; }
+  mountpoint -q $m/system || mount -t squashfs -o ro,loop $m/medium/graveyard/rootfs.sfs $m/system \
     || { rescue "cannot mount the system image"; return 1; }
   # What the live session writes stays in memory, at most three quarters of it.
   mountpoint -q $m/changes || mount -t tmpfs -o mode=755,size=75% tmpfs $m/changes
   mkdir -p $m/changes/upper $m/changes/work
   mount -t overlay -o "lowerdir=$m/system,upperdir=$m/changes/upper,workdir=$m/changes/work" \
-    yvis-live /sysroot || { rescue "cannot assemble the live file system"; return 1; }
+    graveyard-live /sysroot || { rescue "cannot assemble the live file system"; return 1; }
   # Settings of the live session only (automatic login...).
   cp -a /live/. /sysroot/
 }
 
 mount_installed() {
   local dev
-  [ -n "$root" ] || { rescue "no root= (or yvis.live=) on the kernel command line"; return 1; }
+  [ -n "$root" ] || { rescue "no root= (or graveyard.live=) on the kernel command line"; return 1; }
   dev=$(device_of "$root")
   wait_for "$dev" 40 || { rescue "the root device $root was not found"; return 1; }
   # shellcheck disable=SC2086  # an empty type must not become an argument
@@ -268,9 +268,9 @@ until mountpoint -q /sysroot; do
 done
 until [ -x "/sysroot$init" ]; do rescue "the system has no $init"; done
 
-[ -z "$stop" ] || rescue "yvis.break: the system is mounted on /sysroot"
+[ -z "$stop" ] || rescue "graveyard.break: the system is mounted on /sysroot"
 
 udevadm control --exit
 # switch_root moves /dev, /proc, /sys and /run (with the live mounts under
-# /run/yvis) to the new root and frees the initramfs.
+# /run/graveyard) to the new root and frees the initramfs.
 exec switch_root /sysroot "$init"

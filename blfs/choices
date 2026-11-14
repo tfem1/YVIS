@@ -1,14 +1,14 @@
-# What YVIS changes in the dependencies BLFS gives (blfs/resolve.py).
+# What GraveyardOS changes in the dependencies BLFS gives (blfs/resolve.py).
 #   <page>  -<page> ...   drop a dependency of that package
 #   <page>  +<page> ...   add one
 #   *       -<page> ...   drop it everywhere
 # Every line says why.
 
 # Portal back ends of other desktops: KDE ships its own (in Plasma),
-# Hyprland its own (xdg-desktop-portal-hyprland, a YVIS recipe).
+# Hyprland its own (xdg-desktop-portal-hyprland, a GraveyardOS recipe).
 x/xdg-desktop-portal.html  -x/xdg-desktop-portal-gtk.html -x/xdg-desktop-portal-wlr.html -gnome/xdg-desktop-portal-gnome.html -lxqt/xdg-desktop-portal-lxqt.html
 
-# Cycles the book breaks by building twice. YVIS builds once, in this order,
+# Cycles the book breaks by building twice. GraveyardOS builds once, in this order,
 # and drops the dependency of the first package on the second:
 #  - WirePlumber is PipeWire's session manager, needed at run time only
 multimedia/pipewire.html  -multimedia/wireplumber.html

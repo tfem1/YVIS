@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       iso_run:
-        description: yvis-iso run whose ISO is used
+        description: graveyard-iso run whose ISO is used
         required: true
       firmwares:
         default: "uefi bios"
@@ -28,6 +28,6 @@ jobs:
       - name: The ISO
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh run download "${{ inputs.iso_run }}" -n yvis-iso -D "$RUNNER_TEMP/iso"
+        run: gh run download "${{ inputs.iso_run }}" -n graveyard-iso -D "$RUNNER_TEMP/iso"
       - name: Install, then start the installed system
-        run: bash iso/install-test.sh "$(ls "$RUNNER_TEMP"/iso/yvis-*.iso)" "$RUNNER_TEMP/install" ${{ inputs.firmwares }}
+        run: bash iso/install-test.sh "$(ls "$RUNNER_TEMP"/iso/graveyard-*.iso)" "$RUNNER_TEMP/install" ${{ inputs.firmwares }}

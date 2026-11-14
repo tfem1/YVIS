@@ -1,4 +1,4 @@
-# YVIS OS
+# GraveyardOS
 
 A lightweight x86_64 Linux distribution built from source on
 [Linux From Scratch](https://www.linuxfromscratch.org/), with its own package
@@ -36,9 +36,9 @@ sudo yone recover           # roll back a transaction interrupted by a crash
 Packagers:
 
 ```sh
-yone keygen ~/keys/yvis                       # ed25519 key pair
-yone build pkgs/zlib --sign ~/keys/yvis.key   # YONEBUILD recipe -> zlib-1.3.1-1-x86_64.yon
-yone repo-index ./repo --name core --sign ~/keys/yvis.key
+yone keygen ~/keys/graveyard                       # ed25519 key pair
+yone build pkgs/zlib --sign ~/keys/graveyard.key   # YONEBUILD recipe -> zlib-1.3.1-1-x86_64.yon
+yone repo-index ./repo --name core --sign ~/keys/graveyard.key
 ```
 
 ## Repository layout
@@ -47,7 +47,7 @@ yone repo-index ./repo --name core --sign ~/keys/yvis.key
 yone/            Rust package manager (zero third-party crates)
   src/           sources
   tests/e2e.sh   end-to-end suite against a throw-away root
-config/          default system configuration shipped by YVIS
+config/          default system configuration shipped by GraveyardOS
 .github/         CI workflows
 ARCHITECTURE.md  design decisions
 ROADMAP.md       milestones and current status

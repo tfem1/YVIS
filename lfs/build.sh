@@ -22,8 +22,8 @@
 # lfs/edits                       sed edits of a section's book commands
 # lfs/tests-enabled               test suites that are run: <id>#<block>
 # lfs/timeouts                    time limit of the few long sections
-# lfs/yvis/                       YVIS's own sections (chapters 9 and 10)
-# $LFS/.yvis/done/<section-id>    marks a finished section
+# lfs/graveyard/                       GraveyardOS's own sections (chapters 9 and 10)
+# $LFS/.graveyard/done/<section-id>    marks a finished section
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=lfs/config
@@ -31,11 +31,11 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 export LFS=${LFS:-/mnt/lfs}
 JOBS=${JOBS:-$(nproc)}
 # a section that hangs fails after this long instead of eating the whole job
-SECTION_TIMEOUT=${YVIS_SECTION_TIMEOUT:-60m}
-STATE=$LFS/.yvis
-BOOK=${YVIS_LFS_BOOK:-$HERE/book}
-# YVIS's own sections (chapters 9 and 10), same layout as the book's
-OWN=${YVIS_LFS_OWN:-$HERE/yvis}
+SECTION_TIMEOUT=${GRAVEYARD_SECTION_TIMEOUT:-60m}
+STATE=$LFS/.graveyard
+BOOK=${GRAVEYARD_LFS_BOOK:-$HERE/book}
+# GraveyardOS's own sections (chapters 9 and 10), same layout as the book's
+OWN=${GRAVEYARD_LFS_OWN:-$HERE/graveyard}
 REPO=$(cd "$HERE/.." && pwd)
 
 log() { printf '\033[1;35m==>\033[0m %s\n' "$*"; }
@@ -67,7 +67,7 @@ host() {
   id lfs >/dev/null 2>&1 || useradd -s /bin/bash -g lfs -m -k /dev/null lfs
   chown -v lfs "$LFS"/{usr{,/*},var,etc,tools,lib64}
   # The book's ~/.bashrc for lfs, minus the interactive parts.
-  cat > /home/lfs/.yvis-env <<EOF
+  cat > /home/lfs/.graveyard-env <<EOF
 set +h
 umask 022
 LFS=$LFS
@@ -80,7 +80,7 @@ CONFIG_SITE=\$LFS/usr/share/config.site
 MAKEFLAGS=-j$JOBS
 export LFS LC_ALL LFS_TGT PATH CONFIG_SITE MAKEFLAGS
 EOF
-  chown lfs:lfs /home/lfs/.yvis-env
+  chown lfs:lfs /home/lfs/.graveyard-env
 }
 
 # --------------------------------------------------- kernel file systems
@@ -162,7 +162,7 @@ script_for() { # chapter id tarball file srcdir
 #  - a log file per section instead of 100 000 lines on the console.
 isolated() { # logfile command...
   local out=$1; shift
-  if [ "${YVIS_ISOLATE:-1}" = 0 ]; then
+  if [ "${GRAVEYARD_ISOLATE:-1}" = 0 ]; then
     # lfs-debug workflow only: the behaviour before isolation (on the
     # caller's terminal and process group, output on the console)
     : > "$out"
@@ -188,9 +188,9 @@ run_section() { # directory chapter order id tarball
   log "$ch $order $id ($ctx${tb:+, $tb})"
   case $ctx in
     lfs)
-      script_for "$ch" "$id" "$tb" "$file" "$LFS/sources" > /home/lfs/.yvis-step.sh
-      chown lfs /home/lfs/.yvis-step.sh
-      isolated "$out" su - lfs -c "env -i HOME=/home/lfs TERM=${TERM:-xterm} bash -c '. ~/.yvis-env && bash -e ~/.yvis-step.sh'" || rc=$?
+      script_for "$ch" "$id" "$tb" "$file" "$LFS/sources" > /home/lfs/.graveyard-step.sh
+      chown lfs /home/lfs/.graveyard-step.sh
+      isolated "$out" su - lfs -c "env -i HOME=/home/lfs TERM=${TERM:-xterm} bash -c '. ~/.graveyard-env && bash -e ~/.graveyard-step.sh'" || rc=$?
       ;;
     host)
       script_for "$ch" "$id" "$tb" "$file" "$LFS/sources" > "$STATE/step.sh"
@@ -198,10 +198,10 @@ run_section() { # directory chapter order id tarball
       ;;
     chroot)
       do_mount >/dev/null
-      script_for "$ch" "$id" "$tb" "$file" /sources > "$LFS/.yvis/step.sh"
+      script_for "$ch" "$id" "$tb" "$file" /sources > "$LFS/.graveyard/step.sh"
       isolated "$out" chroot "$LFS" /usr/bin/env -i HOME=/root TERM="${TERM:-xterm}" \
         PATH=/usr/bin:/usr/sbin MAKEFLAGS="-j$JOBS" TESTSUITEFLAGS="-j$JOBS" \
-        /bin/bash -e /.yvis/step.sh || rc=$?
+        /bin/bash -e /.graveyard/step.sh || rc=$?
       ;;
   esac
   if [ "$rc" -ne 0 ]; then
@@ -209,16 +209,16 @@ run_section() { # directory chapter order id tarball
       124 | 137) err "$id: no end after $SECTION_TIMEOUT, killed" ;;
       *) err "$id: failed (exit $rc)" ;;
     esac
-    echo "---- last ${YVIS_FAIL_TAIL:-300} lines of $out" >&2
-    tail -n "${YVIS_FAIL_TAIL:-300}" "$out" >&2
+    echo "---- last ${GRAVEYARD_FAIL_TAIL:-300} lines of $out" >&2
+    tail -n "${GRAVEYARD_FAIL_TAIL:-300}" "$out" >&2
     exit 1
   fi
   touch "$STATE/done/$id"
   echo "   done in $((SECONDS - start)) s, $(wc -l < "$out") lines of output"
-  if [ "${YVIS_VERBOSE:-0}" = 1 ]; then cat "$out"; fi
+  if [ "${GRAVEYARD_VERBOSE:-0}" = 1 ]; then cat "$out"; fi
 }
 
-# Every section: the book's, then YVIS's own. One line each:
+# Every section: the book's, then GraveyardOS's own. One line each:
 # directory, chapter, order, id, tarball.
 sections() {
   local d
@@ -229,7 +229,7 @@ sections() {
   done
 }
 
-# What YVIS's sections install or read: copied where the chroot sees them.
+# What GraveyardOS's sections install or read: copied where the chroot sees them.
 sync_files() {
   rm -rf "$STATE/files"
   mkdir -p "$STATE/files"
@@ -237,7 +237,7 @@ sync_files() {
   for d in system kernel installer tools; do
     if [ -d "$REPO/$d" ]; then cp -R "$REPO/$d" "$STATE/files/"; fi
   done
-  echo "${YVIS_BUILD_ID:-$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo local)}" > "$STATE/files/build-id"
+  echo "${GRAVEYARD_BUILD_ID:-$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo local)}" > "$STATE/files/build-id"
 }
 
 run() {
@@ -245,14 +245,14 @@ run() {
   [ -f "$BOOK/sections.tsv" ] || die "lfs/book/ missing (run the lfs-book workflow and commit its output)"
   mkdir -p "$STATE/done"
   sync_files
-  # YVIS_REDO="<id> ...": build these sections again although they are done
-  for id in ${YVIS_REDO:-}; do rm -f "$STATE/done/$id"; done
+  # GRAVEYARD_REDO="<id> ...": build these sections again although they are done
+  for id in ${GRAVEYARD_REDO:-}; do rm -f "$STATE/done/$id"; done
   for ch in "$@"; do
     while IFS=$'\t' read -r dir c order id tb; do
       [ "$c" = "$ch" ] || continue
       run_section "$dir" "$c" "$order" "$id" "$tb"
-      # YVIS_UNTIL=<section id>: stop after it (CI checkpoints)
-      if [ "$id" = "${YVIS_UNTIL:-}" ]; then return 0; fi
+      # GRAVEYARD_UNTIL=<section id>: stop after it (CI checkpoints)
+      if [ "$id" = "${GRAVEYARD_UNTIL:-}" ]; then return 0; fi
     done < <(sections)
   done
 }
@@ -267,7 +267,7 @@ verify() {
     ctx=$(context "$c" "$id")
     if [ "$ctx" = skip ] || skipped "$id"; then continue; fi
     if [ "$dir" = "$OWN" ]; then
-      # YVIS's sections are a later stage: checked once that stage has begun
+      # GraveyardOS's sections are a later stage: checked once that stage has begun
       own=$((own + 1))
       if [ -e "$STATE/done/$id" ]; then own_done=$((own_done + 1)); fi
       continue
@@ -279,18 +279,18 @@ verify() {
   done < <(sections)
   [ "$missing" -eq 0 ] || die "$missing section(s) of the book were not built"
   if [ "$own_done" -gt 0 ] && [ "$own_done" -lt "$own" ]; then
-    die "only $own_done of YVIS's $own own sections (lfs/yvis) were built"
+    die "only $own_done of GraveyardOS's $own own sections (lfs/graveyard) were built"
   fi
   echo "   every section of the book was built"
   do_mount >/dev/null
   mkdir -p "$STATE/logs"
   sync_files
-  for script in verify.sh verify-yvis.sh; do
-    if [ "$script" = verify-yvis.sh ] && [ "$own_done" -eq 0 ]; then continue; fi
+  for script in verify.sh verify-graveyard.sh; do
+    if [ "$script" = verify-graveyard.sh ] && [ "$own_done" -eq 0 ]; then continue; fi
     log "system checks (lfs/$script)"
     install -m 755 "$HERE/$script" "$STATE/$script"
     isolated "$STATE/logs/${script%.sh}.log" chroot "$LFS" /usr/bin/env -i HOME=/root TERM=xterm \
-      PATH=/usr/bin:/usr/sbin /bin/bash "/.yvis/$script" || rc=1
+      PATH=/usr/bin:/usr/sbin /bin/bash "/.graveyard/$script" || rc=1
     cat "$STATE/logs/${script%.sh}.log"
   done
   return "$rc"

@@ -1,4 +1,4 @@
-"""The YVIS installation engine: what the machine has, what the person chose,
+"""The GraveyardOS installation engine: what the machine has, what the person chose,
 the plan that follows, and running it.
 
 The plan is a list of steps, each a bash script, built by plan() from the
@@ -16,8 +16,8 @@ import shlex
 import subprocess
 import time
 
-TARGET = "/mnt/yvis-target"
-LIVE_SYSTEM = "/run/yvis/system"   # the live medium's read-only system image
+TARGET = "/mnt/graveyard-target"
+LIVE_SYSTEM = "/run/graveyard/system"   # the live medium's read-only system image
 MIN_DISK = 16 * 1024 ** 3          # bytes
 EFI_SIZE = "1GiB"
 BOOT_SIZE = "1GiB"                 # separate /boot when the root is encrypted
@@ -47,7 +47,7 @@ def _live_disk():
         with open("/proc/mounts") as f:
             for line in f:
                 dev, mnt = line.split()[:2]
-                if mnt in ("/run/yvis/medium", "/run/yvis/host") and dev.startswith("/dev/"):
+                if mnt in ("/run/graveyard/medium", "/run/graveyard/host") and dev.startswith("/dev/"):
                     parent = _run(["lsblk", "-no", "PKNAME", dev]).strip()
                     return "/dev/" + parent if parent else dev
     except OSError:
@@ -83,7 +83,7 @@ def facts(source=LIVE_SYSTEM):
         disks.append({"path": d["path"], "size": int(d["size"]), "model": (d.get("model") or "").strip(),
                       "transport": d.get("tran"), "removable": d.get("rm") in (True, "1"),
                       "live": d["path"] == live, "partitions": parts})
-    gpu = dict(line.split("=", 1) for line in _run(["yvis-gpu-detect"]).splitlines()
+    gpu = dict(line.split("=", 1) for line in _run(["graveyard-gpu-detect"]).splitlines()
                if "=" in line and not line.startswith("gpu="))
     kernels = sorted(f[len("vmlinuz-"):] for f in os.listdir(os.path.join(source, "boot"))
                      if f.startswith("vmlinuz-")) if os.path.isdir(os.path.join(source, "boot")) else []
@@ -109,11 +109,11 @@ def facts(source=LIVE_SYSTEM):
         # What the live system can do: the installer offers no more.
         "can": {
             # the initramfs must be able to open the disk, not only the installer
-            "encrypt": has("cryptsetup") and os.path.exists(os.path.join(source, "usr/share/yvis/initramfs/luks")),
+            "encrypt": has("cryptsetup") and os.path.exists(os.path.join(source, "usr/share/graveyard/initramfs/luks")),
             "efi": has("mkfs.vfat") or has("mkfs.fat"),
             "sudo": has("sudo"),
             "efibootmgr": has("efibootmgr"),
-            "desktops": [d for d in DESKTOPS if os.path.exists(os.path.join(source, "usr/share/yvis/installer/desktop-" + d))],
+            "desktops": [d for d in DESKTOPS if os.path.exists(os.path.join(source, "usr/share/graveyard/installer/desktop-" + d))],
         },
     }
 
@@ -121,7 +121,7 @@ def facts(source=LIVE_SYSTEM):
 # ------------------------------------------------------------------ choices
 
 DEFAULTS = {
-    "locale": "en_US.UTF-8", "keymap": "us", "timezone": "UTC", "hostname": "yvis",
+    "locale": "en_US.UTF-8", "keymap": "us", "timezone": "UTC", "hostname": "graveyard",
     "disk": {"mode": "auto", "device": None},
     "desktops": ["kde"], "profile": "desktop", "nvidia": None,
     "user": {"name": "", "fullname": ""},
@@ -181,7 +181,7 @@ def validate(c, f, secrets):
         if not d:
             e["disk.device"] = "choose a disk"
         elif d["live"]:
-            e["disk.device"] = "this is the disk YVIS is running from"
+            e["disk.device"] = "this is the disk GraveyardOS is running from"
         elif d["size"] < MIN_DISK:
             e["disk.device"] = "the disk is smaller than 16 GiB"
     elif disk.get("mode") == "manual":
@@ -189,7 +189,7 @@ def validate(c, f, secrets):
         if not rp:
             e["disk.root"] = "choose the partition for the system"
         elif rd["live"]:
-            e["disk.root"] = "this partition is on the disk YVIS is running from"
+            e["disk.root"] = "this partition is on the disk GraveyardOS is running from"
         elif rp["size"] < MIN_DISK:
             e["disk.root"] = "the partition is smaller than 16 GiB"
         if c.get("encrypt"):
@@ -222,7 +222,7 @@ def q(s):
 
 
 def heredoc(path, text):
-    return f"cat > {q(path)} << 'YVIS_EOF'\n{text.rstrip(chr(10))}\nYVIS_EOF"
+    return f"cat > {q(path)} << 'GRAVEYARD_EOF'\n{text.rstrip(chr(10))}\nGRAVEYARD_EOF"
 
 
 def plan(c, f):
@@ -237,18 +237,18 @@ def plan(c, f):
         layout = ["label: gpt"]
         n = 0
         if fw == "uefi":
-            layout.append(f"size={EFI_SIZE}, type=U, name=YVIS-EFI"); n += 1; efi = part_path(dev, n)
+            layout.append(f"size={EFI_SIZE}, type=U, name=GRAVE-EFI"); n += 1; efi = part_path(dev, n)
         else:
-            layout.append(f"size=1MiB, type={BIOS_BOOT_GUID}, name=YVIS-BIOS"); n += 1; efi = None
+            layout.append(f"size=1MiB, type={BIOS_BOOT_GUID}, name=GRAVEYARD-BIOS"); n += 1; efi = None
         boot = None
         if enc:
-            layout.append(f"size={BOOT_SIZE}, type=L, name=YVIS-BOOT"); n += 1; boot = part_path(dev, n)
-        layout.append("type=L, name=YVIS-ROOT"); n += 1; root = part_path(dev, n)
+            layout.append(f"size={BOOT_SIZE}, type=L, name=GRAVEYARD-BOOT"); n += 1; boot = part_path(dev, n)
+        layout.append("type=L, name=GRAVEYARD-ROOT"); n += 1; root = part_path(dev, n)
         bios_disk = dev
         steps.append(("Partition " + dev, "\n".join([
             f"wipefs --all --force {q(dev)}",
-            f"sfdisk --wipe always --wipe-partitions always {q(dev)} << 'YVIS_EOF'",
-            *layout, "YVIS_EOF",
+            f"sfdisk --wipe always --wipe-partitions always {q(dev)} << 'GRAVEYARD_EOF'",
+            *layout, "GRAVEYARD_EOF",
             "udevadm settle",
         ])))
         format_efi = efi is not None
@@ -262,14 +262,14 @@ def plan(c, f):
     fs = []
     root_dev = root
     if enc:
-        fs += [f'printf %s "$YVIS_PASSPHRASE" | cryptsetup luksFormat --type luks2 --batch-mode --key-file=- {q(root)}',
-               f'printf %s "$YVIS_PASSPHRASE" | cryptsetup open --key-file=- {q(root)} yvis-root']
-        root_dev = "/dev/mapper/yvis-root"
-    fs.append(f"mkfs.ext4 -F -q -L yvis {q(root_dev)}")
+        fs += [f'printf %s "$GRAVEYARD_PASSPHRASE" | cryptsetup luksFormat --type luks2 --batch-mode --key-file=- {q(root)}',
+               f'printf %s "$GRAVEYARD_PASSPHRASE" | cryptsetup open --key-file=- {q(root)} graveyard-root']
+        root_dev = "/dev/mapper/graveyard-root"
+    fs.append(f"mkfs.ext4 -F -q -L graveyard {q(root_dev)}")
     if boot:
-        fs.append(f"mkfs.ext4 -F -q -L yvis-boot {q(boot)}")
+        fs.append(f"mkfs.ext4 -F -q -L graveyard-boot {q(boot)}")
     if efi and format_efi:
-        fs.append(f"mkfs.vfat -F 32 -n YVIS-EFI {q(efi)}")
+        fs.append(f"mkfs.vfat -F 32 -n GRAVE-EFI {q(efi)}")
     steps.append(("Create the file systems", "\n".join(fs)))
 
     mounts = [f"mkdir -p {T}", f"mount {q(root_dev)} {T}"]
@@ -300,7 +300,7 @@ def plan(c, f):
         cfg.append(f'  echo "UUID=$(uuid {q(efi)}) /boot/efi vfat umask=0077 0 2"')
     cfg += [f"}} > {T}/etc/fstab"]
     if enc:
-        cfg.append(f'echo "yvis-root UUID=$(uuid {q(root)}) none luks" > {T}/etc/crypttab')
+        cfg.append(f'echo "graveyard-root UUID=$(uuid {q(root)}) none luks" > {T}/etc/crypttab')
     cfg += [
         f"echo {q(c['hostname'])} > {T}/etc/hostname",
         heredoc(f"{T}/etc/hosts", f"127.0.0.1 localhost\n127.0.1.1 {c['hostname']}\n::1 localhost"),
@@ -318,38 +318,38 @@ def plan(c, f):
         # rslave: unmounting them at the end must not unmount the live system's own
         f"for d in dev proc sys run; do mount --rbind /$d {T}/$d && mount --make-rslave {T}/$d; done",
         f"chroot {T} useradd -m -s /bin/bash -G {','.join(USER_GROUPS)} -c {q(u.get('fullname') or u['name'])} {q(u['name'])}",
-        f'printf "%s:%s\\n" {q(u["name"])} "$YVIS_PASSWORD" | chroot {T} chpasswd',
+        f'printf "%s:%s\\n" {q(u["name"])} "$GRAVEYARD_PASSWORD" | chroot {T} chpasswd',
     ]
     if f["can"]["sudo"]:
         user += [f"install -d -m 750 {T}/etc/sudoers.d",
-                 heredoc(f"{T}/etc/sudoers.d/10-yvis-wheel", "%wheel ALL=(ALL:ALL) ALL"),
-                 f"chmod 440 {T}/etc/sudoers.d/10-yvis-wheel",
+                 heredoc(f"{T}/etc/sudoers.d/10-graveyard-wheel", "%wheel ALL=(ALL:ALL) ALL"),
+                 f"chmod 440 {T}/etc/sudoers.d/10-graveyard-wheel",
                  f"chroot {T} passwd -l root"]
     else:
         # no sudo on this system yet: root is administered with the same password
-        user.append(f'printf "root:%s\\n" "$YVIS_PASSWORD" | chroot {T} chpasswd')
+        user.append(f'printf "root:%s\\n" "$GRAVEYARD_PASSWORD" | chroot {T} chpasswd')
     steps.append((f"Create the user {u['name']}", "\n".join(user)))
 
     # 5. software chosen (desktops, profile, NVIDIA), recorded for Yone
     choice = {"desktops": c.get("desktops") or [], "profile": c["profile"],
               "nvidia": bool(c.get("nvidia")), "installed-from": "live ISO"}
     steps.append(("Record the choices", "\n".join([
-        f"install -d {T}/etc/yvis",
-        heredoc(f"{T}/etc/yvis/install.json", json.dumps(choice, indent=2, sort_keys=True)),
+        f"install -d {T}/etc/graveyard",
+        heredoc(f"{T}/etc/graveyard/install.json", json.dumps(choice, indent=2, sort_keys=True)),
     ])))
 
     # 6. boot loader
     kpath = "" if boot else "/boot"
-    cmdline = f"root=UUID=$ROOT_UUID rw quiet" if not enc else "root=/dev/mapper/yvis-root rw quiet"
+    cmdline = f"root=UUID=$ROOT_UUID rw quiet" if not enc else "root=/dev/mapper/graveyard-root rw quiet"
     grub_cfg = "\n".join([
         "set timeout=3",
         "set default=0",
         "search --no-floppy --fs-uuid --set=root $BOOT_UUID",
-        'menuentry "YVIS" {',
+        'menuentry "GraveyardOS" {',
         f"  linux {kpath}/vmlinuz-{kernel} {cmdline}",
         f"  initrd {kpath}/initramfs-{kernel}.img",
         "}",
-        'menuentry "YVIS (safe graphics)" {',
+        'menuentry "GraveyardOS (safe graphics)" {',
         f"  linux {kpath}/vmlinuz-{kernel} {cmdline} nomodeset",
         f"  initrd {kpath}/initramfs-{kernel}.img",
         "}",
@@ -360,14 +360,14 @@ def plan(c, f):
         f"BOOT_UUID=$(uuid {q(boot or root_dev)})",
         f"install -d {T}/boot/grub",
         # unquoted delimiter: the UUIDs are filled in now
-        f"cat > {T}/boot/grub/grub.cfg << YVIS_EOF\n{grub_cfg}\nYVIS_EOF",
+        f"cat > {T}/boot/grub/grub.cfg << GRAVEYARD_EOF\n{grub_cfg}\nGRAVEYARD_EOF",
     ]
     if fw == "uefi":
         # The removable path (EFI/BOOT/BOOTX64.EFI) starts on every firmware
         # without a boot entry; a named entry is added when efibootmgr exists.
         bl.append(f"chroot {T} grub-install --target=x86_64-efi --efi-directory=/boot/efi --boot-directory=/boot --removable --no-nvram")
         if f["can"]["efibootmgr"]:
-            bl.append(f"chroot {T} grub-install --target=x86_64-efi --efi-directory=/boot/efi --boot-directory=/boot --bootloader-id=YVIS")
+            bl.append(f"chroot {T} grub-install --target=x86_64-efi --efi-directory=/boot/efi --boot-directory=/boot --bootloader-id=GraveyardOS")
     else:
         bl.append(f"chroot {T} grub-install --target=i386-pc --boot-directory=/boot {q(bios_disk)}")
     steps.append(("Install the boot loader", "\n".join(bl)))
@@ -375,7 +375,7 @@ def plan(c, f):
     steps.append(("Finish", "\n".join([
         "sync",
         f"umount -R {T}",
-        "[ ! -e /dev/mapper/yvis-root ] || cryptsetup close yvis-root" if enc else "true",
+        "[ ! -e /dev/mapper/graveyard-root ] || cryptsetup close graveyard-root" if enc else "true",
     ])))
     return steps
 
@@ -421,8 +421,8 @@ def summary(c, f):
 def run(steps, secrets, log, dry_run=False, pace=0.0):
     """Run the steps in order; log(event) receives progress. Stops at the
     first failure and returns False."""
-    env = dict(os.environ, YVIS_PASSWORD=secrets.get("password", ""),
-               YVIS_PASSPHRASE=secrets.get("passphrase", ""), LC_ALL="C")
+    env = dict(os.environ, GRAVEYARD_PASSWORD=secrets.get("password", ""),
+               GRAVEYARD_PASSPHRASE=secrets.get("passphrase", ""), LC_ALL="C")
     for i, (title, script) in enumerate(steps):
         log({"step": i, "title": title, "state": "running"})
         if dry_run:

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Tests for tools/yvis-gpu-detect against fake sysfs trees.
+# Tests for tools/graveyard-gpu-detect against fake sysfs trees.
 set -eu
 D=$(cd "$(dirname "$0")/.." && pwd)
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
@@ -12,7 +12,7 @@ card() { # root slot class vendor device [driver]
   echo "$3" > "$p/class"; echo "0x$4" > "$p/vendor"; echo "0x$5" > "$p/device"
   if [ -n "${6:-}" ]; then mkdir -p "$1/bus/pci/drivers/$6"; ln -s "../../drivers/$6" "$p/driver"; fi
 }
-run() { "$D/yvis-gpu-detect" --sysfs "$1" --ids "${2:-/nonexistent}"; }
+run() { "$D/graveyard-gpu-detect" --sysfs "$1" --ids "${2:-/nonexistent}"; }
 
 card "$T/rtx4070" 0000:01:00.0 0x030000 10de 2786 nouveau
 card "$T/rtx4070" 0000:01:00.1 0x040300 10de 22bc            # its HDMI audio: ignored

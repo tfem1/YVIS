@@ -1,15 +1,15 @@
-# Builds the YVIS base as Yone packages and checks them: the recipes are
+# Builds the GraveyardOS base as Yone packages and checks them: the recipes are
 # generated from the LFS book (packages/gen-base.py), built inside the
-# reference system of a `yvis-base`/`yvis-iso` run (read-only, under an
+# reference system of a `graveyard-base`/`graveyard-iso` run (read-only, under an
 # overlay that catches writes outside $PKGDIR), installed into an empty root
 # and compared with the reference, path by path.
-name: yvis-packages
+name: graveyard-packages
 
 on:
   workflow_dispatch:
     inputs:
       base_run:
-        description: "Run id whose yvis-base artifact is the reference system"
+        description: "Run id whose graveyard-base artifact is the reference system"
         type: string
         required: true
       only:
@@ -38,7 +38,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: yvis-base
+          name: graveyard-base
           path: ${{ runner.temp }}
           run-id: ${{ inputs.base_run }}
           github-token: ${{ github.token }}
@@ -50,8 +50,8 @@ jobs:
 
       - name: Reference system and sources
         run: |
-          sudo -E bash lfs/build.sh unpack "$RUNNER_TEMP"/yvis-base.tar.zst
-          sudo rm -f "$RUNNER_TEMP"/yvis-base.tar.zst
+          sudo -E bash lfs/build.sh unpack "$RUNNER_TEMP"/graveyard-base.tar.zst
+          sudo rm -f "$RUNNER_TEMP"/graveyard-base.tar.zst
           bash lfs/fetch-sources.sh "$RUNNER_TEMP/sources"
 
       - name: Yone (static)
@@ -71,7 +71,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: yvis-recipes
+          name: graveyard-recipes
           path: ${{ runner.temp }}/recipes
           retention-days: 14
 
@@ -95,20 +95,20 @@ jobs:
       - name: Collect
         if: always()
         run: |
-          sudo tar -C "$RUNNER_TEMP/work" -czf "$RUNNER_TEMP/yvis-packages-logs.tar.gz" logs $(cd "$RUNNER_TEMP/work" && ls -d report 2>/dev/null)
+          sudo tar -C "$RUNNER_TEMP/work" -czf "$RUNNER_TEMP/graveyard-packages-logs.tar.gz" logs $(cd "$RUNNER_TEMP/work" && ls -d report 2>/dev/null)
           sudo chmod -R a+rX "$RUNNER_TEMP/work/repo" 2>/dev/null || true
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: yvis-packages-logs
-          path: ${{ runner.temp }}/yvis-packages-logs.tar.gz
+          name: graveyard-packages-logs
+          path: ${{ runner.temp }}/graveyard-packages-logs.tar.gz
           retention-days: 14
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: yvis-repo
+          name: graveyard-repo
           path: ${{ runner.temp }}/work/repo
           compression-level: 0
           if-no-files-found: ignore

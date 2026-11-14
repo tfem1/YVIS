@@ -8,7 +8,7 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-import yvis_install as yi  # noqa: E402
+import graveyard_install as yi  # noqa: E402
 
 FACTS = {
     "firmware": "uefi",
@@ -24,7 +24,7 @@ FACTS = {
          "live": False, "partitions": []},
     ],
     "gpu": {"nvidia": "open", "hybrid": "no"},
-    "source": "/run/yvis/system", "kernel": "7.1.8-yvis",
+    "source": "/run/graveyard/system", "kernel": "7.1.8-graveyard",
     "locales": ["en_US.UTF-8", "fr_FR.UTF-8"], "keymaps": ["us", "fr"], "timezones": ["Europe/Paris", "UTC"],
     "can": {"encrypt": True, "efi": True, "sudo": True, "efibootmgr": False, "desktops": []},
 }
@@ -79,9 +79,9 @@ class Validate(unittest.TestCase):
 class Plan(unittest.TestCase):
     def test_auto_uefi(self):
         s = script(yi.plan(CHOICES, FACTS))
-        self.assertIn("size=1GiB, type=U, name=YVIS-EFI", s)
-        self.assertIn("mkfs.vfat -F 32 -n YVIS-EFI /dev/nvme0n1p1", s)
-        self.assertIn("mkfs.ext4 -F -q -L yvis /dev/nvme0n1p2", s)
+        self.assertIn("size=1GiB, type=U, name=GRAVE-EFI", s)
+        self.assertIn("mkfs.vfat -F 32 -n GRAVE-EFI /dev/nvme0n1p1", s)
+        self.assertIn("mkfs.ext4 -F -q -L graveyard /dev/nvme0n1p2", s)
         self.assertIn("grub-install --target=x86_64-efi --efi-directory=/boot/efi --boot-directory=/boot --removable --no-nvram", s)
         self.assertIn("ln -sfn ../usr/share/zoneinfo/Europe/Paris", s)
         self.assertIn("KEYMAP=fr", s)
@@ -100,21 +100,21 @@ class Plan(unittest.TestCase):
         self.assertNotIn("sfdisk", s)
         self.assertNotIn("wipefs", s)
         self.assertNotIn("mkfs.vfat", s)  # Windows boots from it
-        self.assertIn("mkfs.ext4 -F -q -L yvis /dev/nvme0n1p3", s)
+        self.assertIn("mkfs.ext4 -F -q -L graveyard /dev/nvme0n1p3", s)
 
     def test_encrypted_root_has_a_plain_boot(self):
         s = script(yi.plan(dict(CHOICES, encrypt=True), FACTS))
         self.assertIn("cryptsetup luksFormat --type luks2 --batch-mode --key-file=- /dev/nvme0n1p3", s)
-        self.assertIn("mount /dev/nvme0n1p2 /mnt/yvis-target/boot", s)
-        self.assertIn("root=/dev/mapper/yvis-root", s)
+        self.assertIn("mount /dev/nvme0n1p2 /mnt/graveyard-target/boot", s)
+        self.assertIn("root=/dev/mapper/graveyard-root", s)
 
     def test_secrets_never_in_the_commands(self):
         secret = "hunter2-very-secret"
         c = dict(CHOICES, encrypt=True)
         s = script(yi.plan(c, FACTS))
         self.assertNotIn(secret, s)
-        self.assertIn('"$YVIS_PASSWORD"', s)
-        self.assertIn('"$YVIS_PASSPHRASE"', s)
+        self.assertIn('"$GRAVEYARD_PASSWORD"', s)
+        self.assertIn('"$GRAVEYARD_PASSPHRASE"', s)
 
     def test_nvme_partition_names(self):
         self.assertEqual(yi.part_path("/dev/nvme0n1", 2), "/dev/nvme0n1p2")

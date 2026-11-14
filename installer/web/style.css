@@ -1,16 +1,16 @@
-/* YVIS installer: the colours of the site (site/index.html). */
+/* GraveyardOS installer: black, with the stone of the tombstone logo as accent. */
 :root {
-  --bg: #13101C;
-  --panel: #1A1626;
-  --raised: #221D33;
-  --fg: #EDEAF5;
-  --muted: #9A93AD;
-  --faint: #6D6683;
-  --line: #2A2440;
-  --line-strong: #3A3258;
-  --violet: #8B5CF6;
-  --violet-soft: #B79BFF;
-  --violet-wash: rgba(139, 92, 246, 0.12);
+  --bg: #000000;
+  --panel: #0A0A0A;
+  --raised: #141414;
+  --fg: #F2F2F2;
+  --muted: #A3A3A3;
+  --faint: #6B6B6B;
+  --line: #1C1C1C;
+  --line-strong: #2E2E2E;
+  --violet: #9DB1BF;
+  --violet-soft: #C9D6DF;
+  --violet-wash: rgba(157, 177, 191, 0.12);
   --danger: #F87171;
   --danger-wash: rgba(248, 113, 113, 0.10);
   --ok: #4ADE80;
@@ -39,9 +39,9 @@ button, input, select { font: inherit; color: inherit; }
   padding: 32px 24px;
   display: flex; flex-direction: column; gap: 36px;
 }
-.brand { display: flex; align-items: center; gap: 4px; margin-left: -8px; }
-.brand img { width: 44px; height: 44px; }
-.brand span { font-weight: 700; letter-spacing: 0.18em; font-size: 20px; }
+.brand { display: flex; align-items: center; gap: 8px; margin-left: -4px; }
+.brand img { width: 40px; height: 40px; image-rendering: pixelated; }
+.brand span { font-weight: 700; letter-spacing: 0.04em; font-size: 19px; }
 .rail-note {
   margin-top: auto; font-size: 13px; color: var(--violet-soft);
   border: 1px solid var(--line-strong); border-radius: 8px; padding: 8px 10px;
@@ -72,7 +72,7 @@ button, input, select { font: inherit; color: inherit; }
 .steps li.done { color: var(--muted); }
 .steps li.done::before { content: "✓"; color: var(--violet-soft); border-color: var(--violet); }
 .steps li.current { color: var(--fg); font-weight: 600; }
-.steps li.current::before { background: var(--violet); border-color: var(--violet); color: #fff; }
+.steps li.current::before { background: var(--violet); border-color: var(--violet); color: #000; }
 
 /* ---------- type */
 .eyebrow {
@@ -164,7 +164,7 @@ small[data-error]:empty { display: none; }
   border: 0; background: none; cursor: pointer;
   padding: 8px 18px; border-radius: 9px; color: var(--muted);
 }
-.segmented button[aria-checked="true"] { background: var(--violet); color: #fff; }
+.segmented button[aria-checked="true"] { background: var(--violet); color: #000; }
 
 /* ---------- toggles and checks */
 .toggle, .check { display: flex; align-items: flex-start; gap: 14px; cursor: pointer; max-width: 640px; }
@@ -250,9 +250,9 @@ small[data-error]:empty { display: none; }
 .finish-mark {
   display: inline-grid; place-items: center;
   width: 88px; height: 88px; border-radius: 50%;
-  font-size: 42px; font-weight: 600; color: #fff;
+  font-size: 42px; font-weight: 600; color: #000;
   background: var(--violet);
-  box-shadow: 0 0 0 10px var(--violet-wash), 0 0 0 22px rgba(139, 92, 246, 0.05);
+  box-shadow: 0 0 0 10px var(--violet-wash), 0 0 0 22px rgba(157, 177, 191, 0.05);
   animation: pop 0.45s cubic-bezier(0.2, 1.4, 0.4, 1);
 }
 .finish.failed .finish-mark { background: var(--danger); box-shadow: 0 0 0 10px var(--danger-wash), 0 0 0 22px rgba(248, 113, 113, 0.04); }
@@ -280,8 +280,8 @@ small[data-error]:empty { display: none; }
   border-radius: 10px; padding: 11px 22px; cursor: pointer; font-weight: 600;
   transition: background 0.12s, border-color 0.12s, opacity 0.12s;
 }
-.primary { background: var(--violet); border: 1px solid var(--violet); color: #fff; }
-.primary:hover { background: #7C4DEB; }
+.primary { background: var(--violet); border: 1px solid var(--violet); color: #000; }
+.primary:hover { background: var(--violet-soft); }
 .primary.danger { background: var(--danger); border-color: var(--danger); color: #1a0b0b; }
 .primary:disabled { opacity: 0.4; cursor: not-allowed; }
 .ghost { background: none; border: 1px solid var(--line-strong); color: var(--muted); }

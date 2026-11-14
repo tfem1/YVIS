@@ -1,4 +1,4 @@
-# Publishes an ISO built and boot-tested by a yvis-iso run as a GitHub
+# Publishes an ISO built and boot-tested by a graveyard-iso run as a GitHub
 # release (files up to 2 GiB). The site links to the latest one.
 name: release
 
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       iso_run:
-        description: yvis-iso run whose ISO is published (its boots must have passed)
+        description: graveyard-iso run whose ISO is published (its boots must have passed)
         required: true
       tag:
         description: release tag, e.g. v0.1-preview.1
@@ -15,7 +15,7 @@ on:
         description: release notes file
         default: release/notes-0.1-preview.md
       title:
-        default: YVIS 0.1 (console preview)
+        default: GraveyardOS 0.1 (console preview)
 
 permissions:
   contents: write
@@ -30,7 +30,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run download "${{ inputs.iso_run }}" -n yvis-iso -D iso
+          gh run download "${{ inputs.iso_run }}" -n graveyard-iso -D iso
           ls -l iso
           (cd iso && sha256sum -c ./*.sha256)
           size=$(stat -c %s iso/*.iso)

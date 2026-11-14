@@ -12,7 +12,7 @@ block of chapters 5 to 8 in book order. One script is written per section,
 Blocks that run test suites or need a human (exec, passwd, tzselect, entering
 the chroot...) are kept in the script but commented out with the reason, so a
 review shows exactly what the build does and does not run. Blocks with
-``<replaceable>`` placeholders are commented out too: YVIS supplies those
+``<replaceable>`` placeholders are commented out too: GraveyardOS supplies those
 values in lfs/overrides/.
 
 Only the Python standard library is used: the script also runs inside a
@@ -165,7 +165,7 @@ def read(base, rel):
     """Read a page from a URL base or a local mirror directory."""
     if re.match(r"https?://", base):
         url = urllib.parse.urljoin(base.rstrip("/") + "/", rel)
-        req = urllib.request.Request(url, headers={"User-Agent": "yvis-lfs-extract"})
+        req = urllib.request.Request(url, headers={"User-Agent": "graveyard-lfs-extract"})
         with urllib.request.urlopen(req, timeout=60) as r:
             return r.read().decode("utf-8"), url
     path = os.path.join(base, rel)
@@ -271,7 +271,7 @@ def main():
             if why and why.startswith("needs") and all((sid, r) in values for r in repl):
                 for r in repl:
                     block = block.replace(r, values[(sid, r)])
-                lines.append(f"# --- block {i} (YVIS values from lfs/values: "
+                lines.append(f"# --- block {i} (GraveyardOS values from lfs/values: "
                              + ", ".join(f"{r}={values[(sid, r)]}" for r in repl) + ")")
                 lines.append(block)
                 continue

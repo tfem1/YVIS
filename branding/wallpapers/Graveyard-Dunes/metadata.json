@@ -1,9 +1,9 @@
 {
     "KPlugin": {
-        "Authors": [{ "Name": "YVIS" }],
+        "Authors": [{ "Name": "GraveyardOS" }],
         "Description": "Violet dunes: under the sun in light mode, under the moon in dark mode",
-        "Id": "YVIS-Dunes",
+        "Id": "Graveyard-Dunes",
         "License": "CC-BY-SA-4.0",
-        "Name": "YVIS Dunes"
+        "Name": "Graveyard Dunes"
     }
 }

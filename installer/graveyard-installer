@@ -1,7 +1,7 @@
 #!/usr/bin/python3
-"""The YVIS installer: a local web page that drives yvis_install.
+"""The GraveyardOS installer: a local web page that drives graveyard_install.
 
-    yvis-installer [--listen ADDR] [--port N] [--demo] [--dry-run]
+    graveyard-installer [--listen ADDR] [--port N] [--demo] [--dry-run]
 
 It serves the page on http://127.0.0.1:8475/ (the desktop opens it full
 screen). --listen 0.0.0.0 lets another computer on the network drive the
@@ -24,9 +24,9 @@ import urllib.parse
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, HERE)
-import yvis_install as yi  # noqa: E402
+import graveyard_install as yi  # noqa: E402
 
-WEB = next(p for p in [os.path.join(HERE, "web"), "/usr/share/yvis/installer/web"] if os.path.isdir(p))
+WEB = next(p for p in [os.path.join(HERE, "web"), "/usr/share/graveyard/installer/web"] if os.path.isdir(p))
 TYPES = {".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript",
          ".svg": "image/svg+xml", ".png": "image/png"}
 
@@ -44,7 +44,7 @@ DEMO = {
              {"path": "/dev/sda1", "size": 32014630912, "fstype": "exfat", "label": "Ventoy", "type": None}]},
     ],
     "gpu": {"nvidia": "open", "hybrid": "no"},
-    "source": "/run/yvis/system", "kernel": "7.1.8-yvis",
+    "source": "/run/graveyard/system", "kernel": "7.1.8-graveyard",
     "locales": ["de_DE.UTF-8", "en_GB.UTF-8", "en_US.UTF-8", "es_ES.UTF-8", "fr_FR.UTF-8", "it_IT.UTF-8"],
     "keymaps": ["de", "es", "fr", "fr-latin9", "it", "uk", "us"],
     "timezones": ["America/New_York", "Europe/Berlin", "Europe/London", "Europe/Paris", "UTC"],
@@ -93,7 +93,7 @@ def make_handler(args, key, job):
         return DEMO if args.demo else yi.facts()
 
     class Handler(http.server.BaseHTTPRequestHandler):
-        server_version = "yvis-installer"
+        server_version = "graveyard-installer"
 
         def log_message(self, fmt, *a):
             pass
@@ -118,7 +118,7 @@ def make_handler(args, key, job):
             return True
 
         def api_ok(self):
-            return self.allowed() and secrets.compare_digest(self.headers.get("X-YVIS-Key", ""), key)
+            return self.allowed() and secrets.compare_digest(self.headers.get("X-GRAVEYARD-Key", ""), key)
 
         def do_GET(self):
             url = urllib.parse.urlparse(self.path)
@@ -150,7 +150,7 @@ def make_handler(args, key, job):
                     return self.send(403, b"open the address shown on the installing computer, with its key",
                                      "text/plain; charset=utf-8")
                 # the key reaches only this page (same origin)
-                data = data.replace(b"@YVIS_KEY@", key.encode())
+                data = data.replace(b"@GRAVEYARD_KEY@", key.encode())
             self.send(200, data, TYPES.get(os.path.splitext(path)[1], "application/octet-stream"))
 
         def do_POST(self):
@@ -196,21 +196,21 @@ def auto(args):
     """Unattended installation (the QEMU install test, scripted installs)."""
     with open(args.auto) as fh:
         choices = json.load(fh)
-    secret = {"password": os.environ.get("YVIS_PASSWORD", ""), "passphrase": os.environ.get("YVIS_PASSPHRASE", "")}
+    secret = {"password": os.environ.get("GRAVEYARD_PASSWORD", ""), "passphrase": os.environ.get("GRAVEYARD_PASSPHRASE", "")}
     f = DEMO if args.demo else yi.facts()
     errors = yi.validate(choices, f, secret)
     if errors:
         for k, v in sorted(errors.items()):
-            print(f"yvis-installer: {k}: {v}", file=sys.stderr)
+            print(f"graveyard-installer: {k}: {v}", file=sys.stderr)
         return 2
     for row in yi.summary(choices, f):
         print(("!! " if row["danger"] else "   ") + f"{row['label']}: {row['value']}", flush=True)
     dry = args.dry_run or args.demo
     if not dry and not args.yes:
-        print("yvis-installer: add --yes to write to the disk", file=sys.stderr)
+        print("graveyard-installer: add --yes to write to the disk", file=sys.stderr)
         return 2
     if not dry and os.geteuid() != 0:
-        print("yvis-installer: run as root", file=sys.stderr)
+        print("graveyard-installer: run as root", file=sys.stderr)
         return 2
 
     def log(event):
@@ -219,35 +219,35 @@ def auto(args):
         elif "line" in event:
             print("    " + event["line"], flush=True)
         elif event.get("state") == "failed":
-            print(f"yvis-installer: step {event['step'] + 1} failed (exit {event['status']})", file=sys.stderr, flush=True)
+            print(f"graveyard-installer: step {event['step'] + 1} failed (exit {event['status']})", file=sys.stderr, flush=True)
     ok = yi.run(yi.plan(choices, f), secret, log, dry_run=dry)
-    print("yvis-installer: " + ("installed" if ok else "FAILED"), flush=True)
+    print("graveyard-installer: " + ("installed" if ok else "FAILED"), flush=True)
     return 0 if ok else 1
 
 
 def main():
-    ap = argparse.ArgumentParser(description="The YVIS installer (a local web page).")
+    ap = argparse.ArgumentParser(description="The GraveyardOS installer (a local web page).")
     ap.add_argument("--listen", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8475)
     ap.add_argument("--demo", action="store_true", help="an invented machine; nothing is written")
     ap.add_argument("--dry-run", action="store_true", help="show the commands instead of running them")
     ap.add_argument("--auto", metavar="CHOICES.json",
-                    help="no page: install with these choices (passwords from YVIS_PASSWORD, YVIS_PASSPHRASE)")
+                    help="no page: install with these choices (passwords from GRAVEYARD_PASSWORD, GRAVEYARD_PASSPHRASE)")
     ap.add_argument("--yes", action="store_true", help="with --auto: really write to the disk")
     args = ap.parse_args()
     if args.auto:
         sys.exit(auto(args))
     if not (args.demo or args.dry_run) and os.geteuid() != 0:
-        sys.exit("yvis-installer: run as root (or try --demo)")
+        sys.exit("graveyard-installer: run as root (or try --demo)")
     key = secrets.token_urlsafe(18)
     job = Job()
     job.pace = 0.9 if args.demo else 0.0
     server = http.server.ThreadingHTTPServer((args.listen, args.port), make_handler(args, key, job))
     shown = args.listen if args.listen not in ("0.0.0.0", "") else socket.gethostname()
     if args.listen in ("127.0.0.1", "localhost"):
-        print(f"YVIS installer: http://{shown}:{args.port}/", flush=True)
+        print(f"GraveyardOS installer: http://{shown}:{args.port}/", flush=True)
     else:
-        print(f"YVIS installer: http://{shown}:{args.port}/?key={key}", flush=True)
+        print(f"GraveyardOS installer: http://{shown}:{args.port}/?key={key}", flush=True)
         print("  open this address from the other computer; the key changes at every start.", flush=True)
     try:
         server.serve_forever()

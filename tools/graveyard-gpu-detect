@@ -1,7 +1,7 @@
 #!/bin/sh
-# yvis-gpu-detect — which graphics driver this machine needs.
+# graveyard-gpu-detect — which graphics driver this machine needs.
 #
-#   yvis-gpu-detect [--sysfs DIR] [--ids FILE]
+#   graveyard-gpu-detect [--sysfs DIR] [--ids FILE]
 #
 # Prints shell-style key=value lines, for the installer and the live session:
 #
@@ -15,7 +15,7 @@
 # Exit status: 0 when nvidia=open (pre-select the NVIDIA option), 1 otherwise.
 #
 # Support of the open modules is read from --ids (default
-# /usr/share/yvis/nvidia-open-ids: one lowercase hex device id per line,
+# /usr/share/graveyard/nvidia-open-ids: one lowercase hex device id per line,
 # generated from the driver's supported-gpus.json when the NVIDIA package is
 # built). Without that file the rule is the architecture boundary: the open
 # modules need a GSP, present from Turing (device ids 0x1e00 and up;
@@ -23,7 +23,7 @@
 set -eu
 
 SYSFS=/sys
-IDS=/usr/share/yvis/nvidia-open-ids
+IDS=/usr/share/graveyard/nvidia-open-ids
 while [ $# -gt 0 ]; do
   case $1 in
     --sysfs) SYSFS=$2; shift 2 ;;

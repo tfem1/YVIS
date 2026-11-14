@@ -50,7 +50,7 @@ is "the tester account is removed" "$(grep -c '^tester:' /etc/passwd)" "0"
 
 echo "== owners and modes (they cross CI jobs in an archive)"
 is "no file with an unknown owner or group" \
-  "$(find / -xdev \( -nouser -o -nogroup \) -not -path '/sources/*' -not -path '/.yvis/*' 2>/dev/null | head -n 5)" ""
+  "$(find / -xdev \( -nouser -o -nogroup \) -not -path '/sources/*' -not -path '/.graveyard/*' 2>/dev/null | head -n 5)" ""
 is "/var/log/lastlog (book 7.6)" "$(stat -c '%U:%G %a' /var/log/lastlog 2>&1)" "root:utmp 664"
 is "/usr/bin/wall is setgid tty" "$(stat -c '%U:%G %a' /usr/bin/wall 2>&1)" "root:tty 2755"
 is "/usr/bin/su is setuid root" "$(stat -c '%U:%G %a' /usr/bin/su 2>&1)" "root:root 4755"

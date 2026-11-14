@@ -1,10 +1,10 @@
-// YVIS — configuration Fastfetch système
+// GraveyardOS — configuration Fastfetch système
 // Installé dans /etc/xdg/fastfetch/config.jsonc (surchargé par ~/.config/fastfetch/config.jsonc)
 {
   "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
   "logo": {
     "type": "file",
-    "source": "/usr/share/yvis/fastfetch/yvis.txt",
+    "source": "/usr/share/graveyard/fastfetch/graveyard.txt",
     "color": { "1": "38;2;255;255;255" },  // the logo in white
     "padding": { "top": 1, "left": 1, "right": 3 }
   },

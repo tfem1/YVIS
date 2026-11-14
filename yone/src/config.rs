@@ -10,7 +10,7 @@
 //! hold = linux nvidia-open  # never upgraded by `yone upgrade`
 //!
 //! [core]
-//! server = https://repo.yvis.org/$channel/$repo/$arch
+//! server = https://repo.graveyardos.org/$channel/$repo/$arch
 //! ```
 
 use crate::bail;

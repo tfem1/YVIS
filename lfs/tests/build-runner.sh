@@ -9,13 +9,13 @@ HERE=$(cd "$(dirname "$0")/.." && pwd)
 T=$(mktemp -d); chmod 755 "$T"
 cp "$HERE/skip" "$T/skip.orig"; cp "$HERE/edits" "$T/edits.orig"; cp "$HERE/tests-enabled" "$T/tests.orig"; cp "$HERE/timeouts" "$T/timeouts.orig"
 trap 'cp "$T/skip.orig" "$HERE/skip"; cp "$T/edits.orig" "$HERE/edits"; cp "$T/tests.orig" "$HERE/tests-enabled"; cp "$T/timeouts.orig" "$HERE/timeouts"; rm -rf "$T"; userdel -r lfs >/dev/null 2>&1 || true' EXIT
-export LFS=$T/lfs YVIS_LFS_BOOK=$T/book YVIS_LFS_OWN=$T/own
+export LFS=$T/lfs GRAVEYARD_LFS_BOOK=$T/book GRAVEYARD_LFS_OWN=$T/own
 n=0; ok() { n=$((n + 1)); echo "  ✓ $*"; }; die() { echo "  ✗ $*"; exit 1; }
 
-mkdir -p "$T/pkg/hello-1.0" "$YVIS_LFS_BOOK"/{ch05,ch07}
+mkdir -p "$T/pkg/hello-1.0" "$GRAVEYARD_LFS_BOOK"/{ch05,ch07}
 echo 'echo built > "$1"' > "$T/pkg/hello-1.0/build.sh"
 tar -C "$T/pkg" -czf "$T/hello-1.0.tar.gz" hello-1.0
-cat > "$YVIS_LFS_BOOK/sections.tsv" <<'TSV'
+cat > "$GRAVEYARD_LFS_BOOK/sections.tsv" <<'TSV'
 # chapter	order	section	tarball	title
 ch05	000	ch-tools-badcd	missing-1.0.tar.gz	5.0 Missing tarball
 ch05	001	ch-tools-hello	hello-1.0.tar.gz	5.1 Hello-1.0
@@ -26,12 +26,12 @@ ch05	006	ch-tools-hang	-	5.6 Hangs
 ch05	007	ch-tools-after	-	5.7 After the hang
 ch07	004	ch-tools-changingowner	-	7.2 Changing Ownership
 TSV
-cat > "$YVIS_LFS_BOOK/ch05/001-ch-tools-hello.sh" <<'SH'
+cat > "$GRAVEYARD_LFS_BOOK/ch05/001-ch-tools-hello.sh" <<'SH'
 # --- block 1
 bash build.sh "$LFS/tools/hello.out"
 pwd > "$LFS/tools/hello.pwd"
 SH
-cat > "$YVIS_LFS_BOOK/ch05/002-ch-tools-env.sh" <<'SH'
+cat > "$GRAVEYARD_LFS_BOOK/ch05/002-ch-tools-env.sh" <<'SH'
 # --- block 1
 echo "$(id -un) $LFS_TGT $LC_ALL $MAKEFLAGS" > "$LFS/tools/env.out"
 
@@ -48,16 +48,16 @@ cat > /dev/null   # reads stdin, as Expect's pty check does
 # --- block 5: SKIPPED (test suite)
 # echo "must stay skipped" > "$LFS/tools/block5.out"
 SH
-echo 'false' > "$YVIS_LFS_BOOK/ch05/003-ch-tools-boom.sh"
-cat > "$YVIS_LFS_BOOK/ch05/000-ch-tools-badcd.sh" <<'SH'
+echo 'false' > "$GRAVEYARD_LFS_BOOK/ch05/003-ch-tools-boom.sh"
+cat > "$GRAVEYARD_LFS_BOOK/ch05/000-ch-tools-badcd.sh" <<'SH'
 echo "must not run" > "$LFS/tools/badcd.out"
 SH
-cat > "$YVIS_LFS_BOOK/ch05/005-ch-tools-tty.sh" <<'SH'
+cat > "$GRAVEYARD_LFS_BOOK/ch05/005-ch-tools-tty.sh" <<'SH'
 echo "to the log file"
 SH
-echo 'sleep 600' > "$YVIS_LFS_BOOK/ch05/006-ch-tools-hang.sh"
-echo 'echo after > "$LFS/tools/after.out"' > "$YVIS_LFS_BOOK/ch05/007-ch-tools-after.sh"
-cat > "$YVIS_LFS_BOOK/ch07/004-ch-tools-changingowner.sh" <<'SH'
+echo 'sleep 600' > "$GRAVEYARD_LFS_BOOK/ch05/006-ch-tools-hang.sh"
+echo 'echo after > "$LFS/tools/after.out"' > "$GRAVEYARD_LFS_BOOK/ch05/007-ch-tools-after.sh"
+cat > "$GRAVEYARD_LFS_BOOK/ch07/004-ch-tools-changingowner.sh" <<'SH'
 chown -R root:root $LFS/tools && echo owned > $LFS/owner.out
 if (: < /dev/tty) 2>/dev/null; then echo terminal; else echo none; fi > "$LFS/tty.out"
 SH
@@ -91,12 +91,12 @@ echo 'echo replaced > "$LFS/tools/boom.out"' > "$T/override.sh"
 mkdir -p "$HERE/overrides"; cp "$T/override.sh" "$HERE/overrides/ch-tools-boom.sh"
 rm -f "$LFS/tools/hello.out"
 echo ch-tools-badcd >> "$HERE/skip"
-YVIS_UNTIL=ch-tools-tty bash "$HERE/build.sh" run ch05 >"$T/log" 2>&1 \
+GRAVEYARD_UNTIL=ch-tools-tty bash "$HERE/build.sh" run ch05 >"$T/log" 2>&1 \
   || { sed -i '$d' "$HERE/skip"; rm -f "$HERE/overrides/ch-tools-boom.sh"; cat "$T/log"; die "override run failed"; }
 rm -f "$HERE/overrides/ch-tools-boom.sh"
-grep -q "to the log file" "$LFS/.yvis/logs/ch-tools-tty.log" && ! grep -q "to the log file" "$T/log" \
-  && ok "a section's output goes to .yvis/logs/<id>.log, not to the console"
-[ ! -e "$LFS/.yvis/done/ch-tools-hang" ] && ok "YVIS_UNTIL stops the run after that section"
+grep -q "to the log file" "$LFS/.graveyard/logs/ch-tools-tty.log" && ! grep -q "to the log file" "$T/log" \
+  && ok "a section's output goes to .graveyard/logs/<id>.log, not to the console"
+[ ! -e "$LFS/.graveyard/done/ch-tools-hang" ] && ok "GRAVEYARD_UNTIL stops the run after that section"
 start=$SECONDS
 echo "ch-tools-hang 2s" >> "$HERE/timeouts"
 if bash "$HERE/build.sh" run ch05 >"$T/log" 2>&1; then sed -i '$d' "$HERE/skip"; die "a hung section must fail the run"; fi
@@ -110,7 +110,7 @@ printf 'ch-tools-changingowner\ts|owned >|owned-and-edited >|\n' >> "$HERE/edits
 script -qec "bash '$HERE/build.sh' run ch07" /dev/null >/dev/null 2>&1 || die "ch07 failed"
 [ "$(cat "$LFS/owner.out")" = owned-and-edited ] && ok "lfs/edits changes a section's commands"
 printf 'ch-tools-changingowner\ts|no such text|x|\n' >> "$HERE/edits"
-rm "$LFS/.yvis/done/ch-tools-changingowner"
+rm "$LFS/.graveyard/done/ch-tools-changingowner"
 if bash "$HERE/build.sh" run ch07 >"$T/log" 2>&1; then die "a stale edit must stop the run"; fi
 grep -q "changes nothing in ch-tools-changingowner" "$T/log" && ok "an edit that no longer matches the book stops the run"
 sed -i '$d' "$HERE/edits"

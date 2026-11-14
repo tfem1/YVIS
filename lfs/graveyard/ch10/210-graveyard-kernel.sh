@@ -1,19 +1,19 @@
-# 10.3 Linux, the book's steps with YVIS's configuration in place of the
+# 10.3 Linux, the book's steps with GraveyardOS's configuration in place of the
 # menu (`make menuconfig` configures a kernel for the machine in front of
 # the reader; this one must boot unknown hardware).
 
 # --- block 1
 make mrproper
 
-# --- block 2: kernel/base.config + kernel/yvis.config, completed for this
+# --- block 2: kernel/base.config + kernel/graveyard.config, completed for this
 # compiler, then checked against kernel/required
-cp /.yvis/files/kernel/base.config .config
-scripts/kconfig/merge_config.sh -m .config /.yvis/files/kernel/yvis.config
+cp /.graveyard/files/kernel/base.config .config
+scripts/kconfig/merge_config.sh -m .config /.graveyard/files/kernel/graveyard.config
 make olddefconfig
-bash /.yvis/files/kernel/check-config.sh .config /.yvis/files/kernel/required
+bash /.graveyard/files/kernel/check-config.sh .config /.graveyard/files/kernel/required
 
 # --- block 3: the same kernel whoever builds it, and whenever
-export KBUILD_BUILD_USER=yvis KBUILD_BUILD_HOST=yvis
+export KBUILD_BUILD_USER=graveyard KBUILD_BUILD_HOST=graveyard
 export KBUILD_BUILD_TIMESTAMP="$(date -Ru -r Makefile)"
 make
 
@@ -32,4 +32,4 @@ install -m644 .config "/boot/config-$kver"
 install -m644 arch/x86/boot/bzImage "/usr/lib/modules/$kver/vmlinuz"
 rm -f "/usr/lib/modules/$kver/build" "/usr/lib/modules/$kver/source"
 install -Dm644 -t "/usr/lib/modules/$kver/build" .config Module.symvers System.map
-echo "$kver" > /.yvis/kernel-release
+echo "$kver" > /.graveyard/kernel-release

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Make a disk image of a USB stick prepared with Ventoy, holding the ISO, set
-# to boot it by itself: the way most people will try YVIS.
+# to boot it by itself: the way most people will try GraveyardOS.
 #
 #   sudo iso/ventoy-stick.sh <iso> <image> [ventoy version, default: latest]
 #
@@ -50,16 +50,16 @@ mount "${loop}p1" "$work/mnt"
 echo "   partition 1: $(findmnt -no FSTYPE "$work/mnt"), label $(blkid -s LABEL -o value "${loop}p1")"
 dir="ISO/Linux distros"
 mkdir -p "$work/mnt/$dir" "$work/mnt/ventoy"
-cp "$iso" "$work/mnt/$dir/yvis 0.1.iso"
+cp "$iso" "$work/mnt/$dir/graveyard 0.1.iso"
 cat > "$work/mnt/ventoy/ventoy.json" << JSON
 {
   "control": [
     { "VTOY_MENU_TIMEOUT": "1" },
-    { "VTOY_DEFAULT_IMAGE": "/$dir/yvis 0.1.iso" },
+    { "VTOY_DEFAULT_IMAGE": "/$dir/graveyard 0.1.iso" },
     { "VTOY_SECONDARY_BOOT_MENU": "0" }
   ]
 }
 JSON
 sync
-echo "   /$dir/yvis 0.1.iso, booted by itself (ventoy/ventoy.json)"
+echo "   /$dir/graveyard 0.1.iso, booted by itself (ventoy/ventoy.json)"
 echo "$version" > "$img.ventoy-version"

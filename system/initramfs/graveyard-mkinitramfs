@@ -1,10 +1,10 @@
 #!/usr/bin/python3
-"""Build the YVIS initramfs from the installed system's own programs.
+"""Build the GraveyardOS initramfs from the installed system's own programs.
 
-    yvis-mkinitramfs [kernel release] [output file]
+    graveyard-mkinitramfs [kernel release] [output file]
 
 Defaults: the running kernel, /boot/initramfs-<release>.img. The image holds
-the init script (/usr/share/yvis/initramfs/init), bash, mount, kmod, udev
+the init script (/usr/share/graveyard/initramfs/init), bash, mount, kmod, udev
 with its storage rules, the libraries they need, and the kernel modules for
 storage controllers, disks and file systems with their dependencies. It is a
 cpio archive ("newc" format, written here: the base system has no cpio)
@@ -17,7 +17,7 @@ import subprocess
 import sys
 import tempfile
 
-SHARE = "/usr/share/yvis/initramfs"
+SHARE = "/usr/share/graveyard/initramfs"
 
 # Programs: found on PATH. Enough to mount a root file system and to repair
 # a boot by hand from the rescue shell.
@@ -51,7 +51,7 @@ MODULE_FILES = ["modules.order", "modules.builtin", "modules.builtin.modinfo"]
 
 
 def die(message):
-    sys.exit(f"yvis-mkinitramfs: {message}")
+    sys.exit(f"graveyard-mkinitramfs: {message}")
 
 
 def libraries(path):
@@ -145,7 +145,7 @@ def build(release, output, share=SHARE, sysroot="/"):
     if not os.path.isfile(os.path.join(release_dir, "modules.dep")):
         die(f"no kernel modules for {release} in {release_dir}")
 
-    work = tempfile.mkdtemp(prefix="yvis-initramfs.")
+    work = tempfile.mkdtemp(prefix="graveyard-initramfs.")
     root = os.path.join(work, "root")
     for d in ["dev", "proc", "sys", "run", "sysroot", "tmp", "etc", "usr/bin", "usr/sbin", "usr/lib"]:
         os.makedirs(os.path.join(root, d))
@@ -175,9 +175,9 @@ def build(release, output, share=SHARE, sysroot="/"):
         os.symlink("../bin/kmod", os.path.join(root, "usr/sbin", name))
 
     # Finds the ISO file Ventoy booted with a BIOS (system/initramfs/vtoy-param.c)
-    helper = "/usr/lib/yvis/vtoy-param"
+    helper = "/usr/lib/graveyard/vtoy-param"
     if not os.path.exists(helper):
-        die(f"{helper} is missing (yvis-initramfs-tools): Ventoy could not boot the image")
+        die(f"{helper} is missing (graveyard-initramfs-tools): Ventoy could not boot the image")
     program(helper)
 
     for soname in DLOPENED:

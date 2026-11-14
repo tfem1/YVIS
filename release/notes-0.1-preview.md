@@ -1,6 +1,6 @@
 **A preview: a console system, no desktop yet.**
 
-YVIS 0.1 is the Linux From Scratch 13.1 base system built in CI, with its own
+GraveyardOS 0.1 is the Linux From Scratch 13.1 base system built in CI, with its own
 kernel (7.1.8) and initramfs, as a live ISO. It boots to a root shell; the
 desktops (KDE Plasma, Hyprland), the installer and the NVIDIA driver come
 later. Nothing is installed on your disk.
@@ -13,9 +13,9 @@ Secure Boot must be off.
 with `lsblk`):
 
 ```
-sha256sum -c yvis-0.1-x86_64.iso.sha256
-sudo dd if=yvis-0.1-x86_64.iso of=/dev/sdX bs=4M status=progress oflag=sync
+sha256sum -c graveyard-0.1-x86_64.iso.sha256
+sudo dd if=graveyard-0.1-x86_64.iso of=/dev/sdX bs=4M status=progress oflag=sync
 ```
 
-At the boot menu, choose YVIS. You are logged in as root on the first
+At the boot menu, choose GraveyardOS. You are logged in as root on the first
 console.

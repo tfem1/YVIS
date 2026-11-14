@@ -77,11 +77,11 @@ jobs:
             tracer=(strace -f -qq -o "$trace" -e trace=openat,ioctl,read -e signal=all -P /dev/tty -P /dev/console)
           fi
           sudo touch "$trace"
-          sudo -E env YVIS_ISOLATE=0 YVIS_UNTIL="$SECTION" "${tracer[@]}" \
+          sudo -E env GRAVEYARD_ISOLATE=0 GRAVEYARD_UNTIL="$SECTION" "${tracer[@]}" \
             bash lfs/build.sh run ch08 > "$out" 2>&1 &
           t=0
-          while [ "$t" -lt "$WAIT" ] && ! sudo test -e "$LFS/.yvis/done/$SECTION"; do sleep 5; t=$((t + 5)); done
-          if sudo test -e "$LFS/.yvis/done/$SECTION"; then
+          while [ "$t" -lt "$WAIT" ] && ! sudo test -e "$LFS/.graveyard/done/$SECTION"; do sleep 5; t=$((t + 5)); done
+          if sudo test -e "$LFS/.graveyard/done/$SECTION"; then
             echo "RESULT: $SECTION finished in about $t s under the old conditions"
           else
             echo "RESULT: $SECTION still not finished after $t s under the old conditions"
@@ -93,12 +93,12 @@ jobs:
           echo "---- signals and terminal accesses seen by strace"
           sudo grep -aE 'SIGTT|SIGTSTP|SIGSTOP|stopped by|/dev/tty|/dev/console|TCSET|TIOC' "$trace" | tail -n 60 | cut -c1-260
           echo "---- cleanup"
-          sudo pkill -KILL -f 'strace -f' ; sudo pkill -KILL -f 'build.sh run'; sudo pkill -KILL -f '/.yvis/step.sh'
+          sudo pkill -KILL -f 'strace -f' ; sudo pkill -KILL -f 'build.sh run'; sudo pkill -KILL -f '/.graveyard/step.sh'
           sleep 2; exit 0
 
       - name: Same section, isolated
         env:
           SECTION: ${{ inputs.section }}
         run: |
-          sudo rm -f "$LFS/.yvis/done/$SECTION"
-          sudo -E YVIS_UNTIL="$SECTION" YVIS_SECTION_TIMEOUT=10m bash lfs/build.sh run ch08 | tail -n 5
+          sudo rm -f "$LFS/.graveyard/done/$SECTION"
+          sudo -E GRAVEYARD_UNTIL="$SECTION" GRAVEYARD_SECTION_TIMEOUT=10m bash lfs/build.sh run ch08 | tail -n 5

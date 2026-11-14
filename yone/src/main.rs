@@ -1,4 +1,4 @@
-//! Yone — the package manager of YVIS OS.
+//! Yone — the package manager of GraveyardOS.
 
 mod archive;
 mod build;
@@ -25,7 +25,7 @@ use transaction::Opts;
 use ui::{human_bytes, Ui};
 
 const HELP: &str = "\
-yone — package manager of YVIS OS
+yone — package manager of GraveyardOS
 
 usage: yone [options] <command> [arguments]
 
@@ -326,7 +326,7 @@ fn run() -> Result<i32> {
             let c = cfg()?;
             let outdir = out.clone().unwrap_or_else(|| dir.clone());
             let packager =
-                std::env::var("YONE_PACKAGER").unwrap_or_else(|_| "YVIS build system".into());
+                std::env::var("YONE_PACKAGER").unwrap_or_else(|_| "GraveyardOS build system".into());
             let bo = build::BuildOpts {
                 outdir: &outdir,
                 compression: compress.as_deref().unwrap_or(&c.compression),

@@ -4,7 +4,7 @@
     python3 iso/screenshot.py screen.ppm
 
 CI logs are the one output always at hand: the image is decoded from the log
-with `sed -n '/^YVIS-SCREEN-BEGIN/,/^YVIS-SCREEN-END/p' | sed '1d;$d' |
+with `sed -n '/^GRAVEYARD-SCREEN-BEGIN/,/^GRAVEYARD-SCREEN-END/p' | sed '1d;$d' |
 base64 -d > screen.png`. Screens wider than 1024 pixels are halved.
 """
 import base64
@@ -33,8 +33,8 @@ def chunk(kind, body):
 
 png = (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w2, h2, 8, 2, 0, 0, 0))
        + chunk(b"IDAT", zlib.compress(b"".join(rows), 9)) + chunk(b"IEND", b""))
-print("YVIS-SCREEN-BEGIN")
+print("GRAVEYARD-SCREEN-BEGIN")
 text = base64.b64encode(png).decode()
 for i in range(0, len(text), 76):
     print(text[i:i + 76])
-print("YVIS-SCREEN-END")
+print("GRAVEYARD-SCREEN-END")

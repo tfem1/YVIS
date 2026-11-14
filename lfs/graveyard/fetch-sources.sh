@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Download the sources of the YVIS sections (lfs/yvis/sources) into DEST.
+# Download the sources of the GraveyardOS sections (lfs/graveyard/sources) into DEST.
 #
-#   lfs/yvis/fetch-sources.sh DEST
+#   lfs/graveyard/fetch-sources.sh DEST
 #
-# Each file must match the BLFS book's MD5 and, once pinned, YVIS's SHA-256.
+# Each file must match the BLFS book's MD5 and, once pinned, GraveyardOS's SHA-256.
 # A source not pinned yet is accepted on its MD5 and its SHA-256 printed, to
-# be written into lfs/yvis/sources after review.
+# be written into lfs/graveyard/sources after review.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 DEST=${1:?usage: fetch-sources.sh DEST}
@@ -22,7 +22,7 @@ while read -r url md5 sha; do
   fi
   got=$(sha256sum "$out" | cut -d' ' -f1)
   if [ "$sha" = - ]; then
-    echo "! $f is not pinned yet: sha256 $got (put it in lfs/yvis/sources)"
+    echo "! $f is not pinned yet: sha256 $got (put it in lfs/graveyard/sources)"
   elif [ "$got" != "$sha" ]; then
     echo "✗ $f: SHA-256 $got, pinned $sha" >&2; fail=1
   else

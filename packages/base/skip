@@ -1,7 +1,7 @@
 # Blocks of the book left out of the packages, in addition to lfs/skip:
 # <section id>#<block>.
 #
-# 7.6: /etc/hosts is shipped by yvis-base-files; the tester account only
+# 7.6: /etc/hosts is shipped by graveyard-base-files; the tester account only
 # exists for the test suites.
 ch-tools-createfiles#2
 ch-tools-createfiles#5

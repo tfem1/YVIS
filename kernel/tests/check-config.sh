@@ -27,10 +27,10 @@ want=$(sed -n 's/^sha256 *= *//p' "$HERE/base.config.source")
 # Every option of the fragment is spelled like an option of the base (a typo
 # would be dropped silently by olddefconfig), and base + fragment satisfy
 # what the fragment is responsible for.
-for o in $(sed -n 's/^CONFIG_\([A-Z0-9_]*\)=.*/\1/p; s/^# CONFIG_\([A-Z0-9_]*\) is not set$/\1/p' "$HERE/yvis.config"); do
-  grep -Eq "^(# )?CONFIG_$o[= ]" "$HERE/base.config" || die "kernel/yvis.config: CONFIG_$o is unknown to kernel/base.config"
+for o in $(sed -n 's/^CONFIG_\([A-Z0-9_]*\)=.*/\1/p; s/^# CONFIG_\([A-Z0-9_]*\) is not set$/\1/p' "$HERE/graveyard.config"); do
+  grep -Eq "^(# )?CONFIG_$o[= ]" "$HERE/base.config" || die "kernel/graveyard.config: CONFIG_$o is unknown to kernel/base.config"
 done
-ok "every option of kernel/yvis.config exists in the base configuration"
+ok "every option of kernel/graveyard.config exists in the base configuration"
 
 if bash "$HERE/check-config.sh" "$HERE/base.config" "$HERE/required" > "$T/out" 2>&1; then die "the base alone must not satisfy kernel/required"; fi
 [ "$(grep -c expected "$T/out")" = 6 ] && ok "the base differs from kernel/required by exactly the six options the fragment sets"

@@ -2,9 +2,9 @@
 name = "yone"
 version = "0.1.0"
 edition = "2021"
-description = "Yone — the package manager of YVIS OS"
+description = "Yone — the package manager of GraveyardOS"
 license = "GPL-3.0-or-later"
-repository = "https://github.com/tfem1/YVIS"
+repository = "https://github.com/tfem1/GraveyardOS"
 rust-version = "1.75"
 
 # Yone deliberately has zero third-party crates: it must build inside a

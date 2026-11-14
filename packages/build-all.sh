@@ -4,7 +4,7 @@
 #
 #   sudo packages/build-all.sh <reference> <recipes> <sources> <work> [package ...]
 #
-#   reference  the built system ($LFS of an `lfs`/`yvis-base` run): its
+#   reference  the built system ($LFS of an `lfs`/`graveyard-base` run): its
 #              toolchain builds the packages; it is never modified
 #   recipes    output of packages/gen-base.py
 #   sources    the source tarballs (lfs/fetch-sources.sh)
@@ -69,7 +69,7 @@ for name in "${order[@]}"; do
   sleep 1
   printf '   %-24s ' "$name"
   rc=0
-  setsid --wait timeout --kill-after=1m "${YVIS_PACKAGE_TIMEOUT:-120m}" \
+  setsid --wait timeout --kill-after=1m "${GRAVEYARD_PACKAGE_TIMEOUT:-120m}" \
     chroot "$root" /usr/bin/env -i HOME=/root TERM=xterm LC_ALL=C \
     PATH=/usr/bin:/usr/sbin:/usr/local/bin MAKEFLAGS="-j$(nproc)" SOURCE_DATE_EPOCH=0 \
     /usr/local/bin/yone build "/packages/recipes/$name" --out /packages/repo \
@@ -95,7 +95,7 @@ done
 
 chroot "$root" /usr/local/bin/yone repo-index /packages/repo --name base \
   --sign /packages/key.key --color never > /dev/null
-cp "$root/packages/key.pub.pem" "$root/packages/repo/yvis-base.pub.pem"
+cp "$root/packages/key.pub.pem" "$root/packages/repo/graveyard-base.pub.pem"
 rm -rf "$work/repo"
 cp -R "$root/packages/repo" "$work/repo"
 
@@ -113,7 +113,7 @@ log "installation into an empty root"
 target=$root/target
 rm -rf "$target"
 mkdir -p "$target/etc/yone/keys"
-cp "$root/packages/key.pub.pem" "$target/etc/yone/keys/yvis-base.pub.pem"
+cp "$root/packages/key.pub.pem" "$target/etc/yone/keys/graveyard-base.pub.pem"
 cat > "$target/etc/yone/yone.conf" << 'EOF'
 [options]
 siglevel = required

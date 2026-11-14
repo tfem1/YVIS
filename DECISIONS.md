@@ -7,7 +7,7 @@ changing one is a decision of the same kind, recorded here.
 |---|---|
 | Audience | Advanced users (Arch-like), not beginners |
 | Updates | Rolling release, two channels: `testing` first, `stable` after a test period |
-| Packages | Prebuilt binaries only; recipes written for YVIS or converted from Arch Linux's PKGBUILDs (0BSD), each built, tested and signed by YVIS (2026-11-14); no community recipe repository, ever |
+| Packages | Prebuilt binaries only; recipes written for GraveyardOS or converted from Arch Linux's PKGBUILDs (0BSD), each built, tested and signed by GraveyardOS (2026-11-14); no community recipe repository, ever |
 | Catalogue | At least 6000 packages in Yone's repositories, the most used first |
 | Yone front end | Command line only |
 | CPU baseline | Any 64-bit PC (plain x86-64) |
@@ -25,8 +25,9 @@ changing one is a decision of the same kind, recorded here.
 | Gaming | A profile (Steam, Proton, GameMode, MangoHud) after the desktops work |
 | NVIDIA | Open kernel modules (GTX 1650 and later); older cards use nouveau |
 | ISO size | One ISO, at most 5 GB (2026-11-14); over 2 GiB it is hosted on SourceForge, GitHub Releases taking files up to 2 GiB |
-| Hosting | Packages on GitHub; ISOs on SourceForge (no per-file limit), GitHub Releases for files under 2 GiB; a minimal site of its own on Cloudflare Pages (`site/`, yvis.pages.dev) |
+| Hosting | Packages on GitHub; ISOs on SourceForge (no per-file limit), GitHub Releases for files under 2 GiB; a minimal site of its own on Cloudflare Pages (`site/`, graveyardos.pages.dev) |
 | Publication | Public development ISOs as soon as a desktop boots; the console ISO published as a preview at the owner's request (2026-11-14) |
+| Name | GraveyardOS (2026-11-14), renamed from YVIS, a name already in use; the logo is a pixel-art tombstone, the installer and the site are black |
 | Code name | None |
 | License | GNU GPL v3 or later; the name and logo reserved (TRADEMARKS.md); © tfem1 |
 | Extras wanted | zram, a welcome screen at first start, the gaming profile |

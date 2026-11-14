@@ -1,7 +1,7 @@
 # Turns the chapter 8 system (artifact lfs-system of an `lfs` run) into the
-# YVIS base: system configuration (chapter 9), kernel (chapter 10), then the
-# checks and a boot in QEMU. YVIS's own sections are in lfs/yvis/.
-name: yvis-base
+# GraveyardOS base: system configuration (chapter 9), kernel (chapter 10), then the
+# checks and a boot in QEMU. GraveyardOS's own sections are in lfs/graveyard/.
+name: graveyard-base
 
 on:
   workflow_dispatch:
@@ -11,7 +11,7 @@ on:
         type: string
         default: ""
       base_run:
-        description: "Or resume from the yvis-base artifact of this run id (skips what is built)"
+        description: "Or resume from the graveyard-base artifact of this run id (skips what is built)"
         type: string
         default: ""
 
@@ -45,7 +45,7 @@ jobs:
       - uses: actions/download-artifact@v4
         if: inputs.base_run != ''
         with:
-          name: yvis-base
+          name: graveyard-base
           path: ${{ runner.temp }}
           run-id: ${{ inputs.base_run }}
           github-token: ${{ github.token }}
@@ -60,13 +60,13 @@ jobs:
           sudo -E bash lfs/build.sh unpack "$RUNNER_TEMP"/*.tar.zst
           sudo rm -f "$RUNNER_TEMP"/*.tar.zst
           bash lfs/fetch-sources.sh "$RUNNER_TEMP/sources"
-          bash lfs/yvis/fetch-sources.sh "$RUNNER_TEMP/sources"
+          bash lfs/graveyard/fetch-sources.sh "$RUNNER_TEMP/sources"
           sudo mkdir -p "$LFS/sources"
           sudo cp "$RUNNER_TEMP"/sources/* "$LFS/sources/"
           sudo ln -sf bash /bin/sh
 
       - name: Chapter 9 — system configuration
-        run: sudo -E YVIS_BUILD_ID="${GITHUB_SHA::7}" bash lfs/build.sh run ch09
+        run: sudo -E GRAVEYARD_BUILD_ID="${GITHUB_SHA::7}" bash lfs/build.sh run ch09
 
       - name: Chapter 10 — kernel
         run: sudo -E bash lfs/build.sh run ch10
@@ -77,35 +77,35 @@ jobs:
       - name: Pack
         if: always()
         run: |
-          sudo -E bash lfs/build.sh pack "$RUNNER_TEMP/yvis-base.tar.zst"
-          sudo tar -C "$LFS/.yvis" -czf "$RUNNER_TEMP/yvis-base-logs.tar.gz" logs
+          sudo -E bash lfs/build.sh pack "$RUNNER_TEMP/graveyard-base.tar.zst"
+          sudo tar -C "$LFS/.graveyard" -czf "$RUNNER_TEMP/graveyard-base-logs.tar.gz" logs
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: yvis-base
-          path: ${{ runner.temp }}/yvis-base.tar.zst
+          name: graveyard-base
+          path: ${{ runner.temp }}/graveyard-base.tar.zst
           compression-level: 0
           retention-days: 14
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: yvis-base-logs
-          path: ${{ runner.temp }}/yvis-base-logs.tar.gz
+          name: graveyard-base-logs
+          path: ${{ runner.temp }}/graveyard-base-logs.tar.gz
           retention-days: 14
 
       - name: Boot test in QEMU
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq qemu-system-x86 > /dev/null
-          sudo rm -f "$RUNNER_TEMP/yvis-base.tar.zst"
+          sudo rm -f "$RUNNER_TEMP/graveyard-base.tar.zst"
           sudo -E bash kernel/boot-test.sh "$RUNNER_TEMP/boot"
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: yvis-boot-console
+          name: graveyard-boot-console
           path: ${{ runner.temp }}/boot/serial.log.txt
           if-no-files-found: ignore
           retention-days: 14

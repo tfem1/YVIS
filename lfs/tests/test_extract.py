@@ -132,7 +132,7 @@ class Extract(unittest.TestCase):
 
     def test_placeholder_values(self):
         s = self.read("ch08/004-ch-system-sqlite.sh")
-        self.assertIn("(YVIS values from lfs/values: <dir>=/usr/share/doc)\ncp -r doc /usr/share/doc/sqlite", s)
+        self.assertIn("(GraveyardOS values from lfs/values: <dir>=/usr/share/doc)\ncp -r doc /usr/share/doc/sqlite", s)
         g = self.read("ch08/003-ch-system-glibc.sh")  # no value given: stays skipped
         self.assertIn("SKIPPED (needs a value from lfs/overrides)", g)
 

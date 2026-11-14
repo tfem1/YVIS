@@ -1,17 +1,17 @@
-# Chapter 9 the YVIS way. The book's chapter configures one machine (its
+# Chapter 9 the GraveyardOS way. The book's chapter configures one machine (its
 # network card, its keyboard, its name); a distribution ships defaults and
 # lets the installer ask. The files are in system/rootfs/, each citing the
 # section of the book it comes from.
 
 # --- block 1: the files (owned by root, 644, directories 755)
 # (loops, not `find -exec`: find hides the failure of the command it runs)
-cd /.yvis/files/system/rootfs
+cd /.graveyard/files/system/rootfs
 for d in $(find . -type d); do install -d -m 755 "/$d"; done
 for f in $(find . -type f); do install -m 644 "$f" "/$f"; done
 cd /
 
 # --- block 2: os-release (book 11.1) with this build's identifier
-sed -i "s/@BUILD_ID@/$(cat /.yvis/files/build-id)/" /usr/lib/os-release
+sed -i "s/@BUILD_ID@/$(cat /.graveyard/files/build-id)/" /usr/lib/os-release
 ln -sfn ../usr/lib/os-release /etc/os-release
 
 # --- block 3: services (book 9.2.1: networkd and resolved are enabled by

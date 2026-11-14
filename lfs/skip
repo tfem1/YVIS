@@ -1,4 +1,4 @@
-# Book sections YVIS never runs (one id per line).
+# Book sections GraveyardOS never runs (one id per line).
 # 8.2 only shows illustrative package-management examples.
 ch-system-pkgmgt
 # 8.5 Glibc, blocks 10-13: only for upgrading a running LFS older than 12.1

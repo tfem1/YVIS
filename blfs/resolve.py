@@ -11,7 +11,7 @@ printed in an order where each package comes after what it needs:
 
     page  version  tarball-url  md5  deps(comma separated)
 
-Optional dependencies are not followed: YVIS adds the ones it wants through
+Optional dependencies are not followed: GraveyardOS adds the ones it wants through
 blfs/choices, which also removes recommendations it does not want and breaks
 the circular dependencies the book resolves by building a package twice.
 Packages of the LFS book itself are already in the base system and are left
@@ -126,7 +126,7 @@ def read(base, rel, cache):
             return f.read()
     if re.match(r"https?://", base):
         url = urllib.parse.urljoin(base.rstrip("/") + "/", rel)
-        req = urllib.request.Request(url, headers={"User-Agent": "yvis-blfs-resolve"})
+        req = urllib.request.Request(url, headers={"User-Agent": "graveyard-blfs-resolve"})
         for attempt in range(5):
             try:
                 with urllib.request.urlopen(req, timeout=60) as r:

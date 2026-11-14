@@ -19,7 +19,7 @@ from collections import Counter
 # Not part of the comparison: build state, runtime and the kernel (not
 # packaged yet).
 EXCLUDE = (
-    ".yvis", "sources", "packages", "target", "tmp/", "var/tmp/", "run/", "dev/",
+    ".graveyard", "sources", "packages", "target", "tmp/", "var/tmp/", "run/", "dev/",
     "proc/", "sys/", "boot/", "usr/lib/modules/", "var/lib/yone/", "var/cache/yone/",
     "var/log/yone.log", "etc/yone/", "usr/local/bin/yone", "root/.cache/",
     "var/log/journal/", "etc/machine-id",

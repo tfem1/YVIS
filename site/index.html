@@ -3,20 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>YVIS</title>
-<meta name="description" content="YVIS: a Linux distribution built from source on Linux From Scratch, with its own package manager, Yone.">
+<title>GraveyardOS</title>
+<meta name="description" content="GraveyardOS: a Linux distribution built from source on Linux From Scratch, with its own package manager, Yone.">
 <meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#13101C">
-<link rel="icon" href="yvis-icon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="graveyard-icon.svg" type="image/svg+xml">
 <style>
   :root {
-    --bg: #13101C;
-    --fg: #EDEAF5;
-    --muted: #9A93AD;
-    --line: #2A2440;
-    --violet: #8B5CF6;
-    --violet-soft: #B79BFF;
-    --code: #1B1727;
+    --bg: #000000;
+    --fg: #F2F2F2;
+    --muted: #A3A3A3;
+    --line: #1C1C1C;
+    --violet: #9DB1BF;
+    --violet-soft: #C9D6DF;
+    --code: #0A0A0A;
   }
   * { box-sizing: border-box; }
   html { background: var(--bg); }
@@ -28,11 +28,11 @@
     -webkit-font-smoothing: antialiased;
   }
   main { max-width: 640px; margin: 0 auto; padding: 72px 20px 48px; }
-  a { color: var(--violet-soft); text-decoration: none; border-bottom: 1px solid #4A3A80; }
+  a { color: var(--violet-soft); text-decoration: none; border-bottom: 1px solid #3A4855; }
   a:hover { border-bottom-color: var(--violet-soft); }
-  header { display: flex; align-items: center; gap: 6px; margin-left: -8px; }
-  header img { width: 52px; height: 52px; }
-  header h1 { font-size: 28px; letter-spacing: 0.18em; margin: 0; font-weight: 700; }
+  header { display: flex; align-items: center; gap: 12px; }
+  header img { width: 52px; height: 52px; image-rendering: pixelated; }
+  header h1 { font-size: 28px; letter-spacing: 0.02em; margin: 0; font-weight: 700; }
   .lead { font-size: 21px; line-height: 1.45; margin: 40px 0 8px; }
   .sub { color: var(--muted); margin: 0; }
   h2 {
@@ -68,7 +68,7 @@
     color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 20px;
   }
   footer a { color: var(--muted); border-bottom-color: var(--line); }
-  footer .legal { flex-basis: 100%; margin: 10px 0 0; font-size: 12.5px; line-height: 1.55; color: #7A7390; }
+  footer .legal { flex-basis: 100%; margin: 10px 0 0; font-size: 12.5px; line-height: 1.55; color: #6B6B6B; }
   @media (max-width: 520px) {
     main { padding-top: 48px; }
     .lead { font-size: 19px; }
@@ -80,8 +80,8 @@
 <body>
 <main>
   <header>
-    <img src="yvis-icon.svg" alt="">
-    <h1>YVIS</h1>
+    <img src="graveyard-icon.svg" alt="">
+    <h1>GraveyardOS</h1>
   </header>
 
   <p class="lead">A Linux distribution built from source, with its own package manager.</p>
@@ -113,17 +113,17 @@
   <h2>Download</h2>
   <div class="download">
     <p><a href="https://github.com/tfem1/YVIS/releases/download/v0.1-preview.1/yvis-0.1-x86_64.iso">yvis-0.1-x86_64.iso</a> &nbsp;<span class="size">554 MiB &middot; <a href="https://github.com/tfem1/YVIS/releases/download/v0.1-preview.1/yvis-0.1-x86_64.iso.sha256">SHA-256</a></span></p>
-    <p>A preview: the base system as a live ISO that boots to a root console. No desktop yet. BIOS or UEFI, Secure Boot off. <a href="https://github.com/tfem1/YVIS/releases/tag/v0.1-preview.1">Release notes</a>.</p>
+    <p>A preview: the base system as a live ISO that boots to a root console. No desktop yet. BIOS or UEFI, Secure Boot off. Built before the project was renamed: it still says YVIS. <a href="https://github.com/tfem1/YVIS/releases/tag/v0.1-preview.1">Release notes</a>.</p>
   </div>
 <pre class="dd"><span class="p">$ </span>sha256sum -c yvis-0.1-x86_64.iso.sha256
 <span class="p">$ </span>sudo dd if=yvis-0.1-x86_64.iso of=/dev/sdX bs=4M oflag=sync</pre>
 
   <footer>
-    <a href="https://github.com/tfem1/YVIS">Source</a>
-    <a href="https://github.com/tfem1/YVIS/blob/main/ROADMAP.md">Roadmap</a>
-    <a href="https://github.com/tfem1/YVIS/blob/main/DECISIONS.md">Decisions</a>
+    <a href="https://github.com/tfem1/GraveyardOS">Source</a>
+    <a href="https://github.com/tfem1/GraveyardOS/blob/main/ROADMAP.md">Roadmap</a>
+    <a href="https://github.com/tfem1/GraveyardOS/blob/main/DECISIONS.md">Decisions</a>
     <span>No tracking, no cookies.</span>
-    <p class="legal">© 2026 tfem1. YVIS is free software under the <a href="https://github.com/tfem1/YVIS/blob/main/LICENSE">GNU GPL v3 or later</a>; the name and logo are reserved (<a href="https://github.com/tfem1/YVIS/blob/main/TRADEMARKS.md">trademarks</a>, <a href="https://github.com/tfem1/YVIS/blob/main/NOTICE.md">notices</a>). Linux® is the registered trademark of Linus Torvalds. YVIS is not affiliated with KDE, NVIDIA or the other projects named here.</p>
+    <p class="legal">© 2026 tfem1. GraveyardOS is free software under the <a href="https://github.com/tfem1/GraveyardOS/blob/main/LICENSE">GNU GPL v3 or later</a>; the name and logo are reserved (<a href="https://github.com/tfem1/GraveyardOS/blob/main/TRADEMARKS.md">trademarks</a>, <a href="https://github.com/tfem1/GraveyardOS/blob/main/NOTICE.md">notices</a>). Linux® is the registered trademark of Linus Torvalds. GraveyardOS is not affiliated with KDE, NVIDIA or the other projects named here.</p>
   </footer>
 </main>
 </body>

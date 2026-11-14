@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generates the YVIS wallpaper concepts as SVG (1920x1080 viewBox, scalable).
+"""Generates the GraveyardOS wallpaper concepts as SVG (1920x1080 viewBox, scalable).
 Deterministic: a fixed seed per wallpaper, so renders are reproducible."""
 import math, random, os, sys
 
@@ -126,6 +126,6 @@ WALLS = {
 }
 os.makedirs(OUT, exist_ok=True)
 for name, f in WALLS.items():
-    with open(os.path.join(OUT, f"yvis-{name}.svg"), "w") as fh:
+    with open(os.path.join(OUT, f"graveyard-{name}.svg"), "w") as fh:
         fh.write(f())
 print("\n".join(WALLS))

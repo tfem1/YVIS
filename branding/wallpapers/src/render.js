@@ -3,7 +3,7 @@
 const {chromium} = require('playwright');
 const fs = require('fs'), path = require('path');
 const SIZES = [[3840, 2160], [2560, 1600], [1920, 1080]];
-const VARIANTS = {images: 'yvis-4-dunes-jour.svg', images_dark: 'yvis-3-dunes-nuit.svg'};
+const VARIANTS = {images: 'graveyard-4-dunes-jour.svg', images_dark: 'graveyard-3-dunes-nuit.svg'};
 (async () => {
   const out = process.argv[2];
   const b = await chromium.launch();

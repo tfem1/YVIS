@@ -1,9 +1,9 @@
-// YVIS installer page: collects the choices, has the server check them, shows
-// the summary, then follows the installation. The server (yvis-installer)
+// GraveyardOS installer page: collects the choices, has the server check them, shows
+// the summary, then follows the installation. The server (graveyard-installer)
 // decides what is valid and what will run; this page only asks.
 "use strict";
 
-const KEY = document.querySelector('meta[name="yvis-key"]').content;
+const KEY = document.querySelector('meta[name="graveyard-key"]').content;
 const ORDER = ["welcome", "region", "disk", "software", "account", "review", "install"];
 const $ = (id) => document.getElementById(id);
 
@@ -15,7 +15,7 @@ let checked = null;    // last /api/check answer
 async function api(path, body) {
   const r = await fetch(path, {
     method: body ? "POST" : "GET",
-    headers: { "X-YVIS-Key": KEY, "Content-Type": "application/json" },
+    headers: { "X-GRAVEYARD-Key": KEY, "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
   });
   return r.json();
@@ -64,7 +64,7 @@ function welcome() {
     ["Firmware", F.firmware === "uefi" ? "UEFI" : "BIOS (legacy)"],
     ["Disks", F.disks.filter((d) => !d.live).map((d) => `${d.model || d.path} (${gb(d.size)})`).join(", ") || "none found"],
     ["Graphics", nv],
-    ["System", "YVIS, kernel " + F.kernel],
+    ["System", "GraveyardOS, kernel " + F.kernel],
   ];
   $("machine").replaceChildren(...rows.flatMap(([k, v]) => [el("dt", {}, k), el("dd", {}, v)]));
   if (F.demo || F.dry_run) {
@@ -94,7 +94,7 @@ function disk() {
     const card = el("button", { class: "card", role: "radio", "aria-checked": C.disk.device === d.path, disabled: d.live },
       el("span", { class: "icon" }, (d.transport || "disk").toUpperCase().slice(0, 4)),
       el("div", {}, el("b", {}, d.model || d.path), el("span", {}, " " + d.path + (d.partitions.length ? ` · ${d.partitions.length} partition(s)` : " · empty"))),
-      d.live ? el("span", { class: "badge" }, "YVIS runs from it") : d.removable ? el("span", { class: "badge" }, "removable") : null,
+      d.live ? el("span", { class: "badge" }, "GraveyardOS runs from it") : d.removable ? el("span", { class: "badge" }, "removable") : null,
       el("span", { class: "size" }, gb(d.size)));
     card.onclick = () => {
       C.disk.device = d.path;
@@ -178,7 +178,7 @@ function account() {
   $("encrypt").disabled = !can;
   $("encrypt-field").classList.toggle("disabled", !can);
   if (!F.can.encrypt) $("encrypt-hint").textContent = "Not available on this live system yet.";
-  else if (C.disk.mode !== "auto") $("encrypt-hint").textContent = "Only when YVIS takes the whole disk.";
+  else if (C.disk.mode !== "auto") $("encrypt-hint").textContent = "Only when GraveyardOS takes the whole disk.";
   $("passphrase-fields").hidden = !C.encrypt;
   $("encrypt").onchange = (e) => { C.encrypt = e.target.checked; $("passphrase-fields").hidden = !C.encrypt; };
 }
@@ -267,7 +267,7 @@ async function install() {
     $("finish-mark").textContent = ok ? "✓" : "!";
     if (ok) {
       const demo = F.demo || F.dry_run;
-      $("install-title").textContent = "YVIS is installed";
+      $("install-title").textContent = "GraveyardOS is installed";
       $("install-end-text").textContent = demo
         ? "Nothing was written: this was a demonstration."
         : "Remove the installation medium, then restart. Log in as " + C.user.name + ".";

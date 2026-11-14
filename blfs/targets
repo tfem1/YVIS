@@ -1,6 +1,6 @@
 # What the desktop ISO is built for: BLFS pages, resolved with their
 # required and recommended dependencies (blfs/resolve.py, blfs/choices).
-# Hyprland, Quickshell, Flatpak and kitty are not in BLFS: YVIS recipes.
+# Hyprland, Quickshell, Flatpak and kitty are not in BLFS: GraveyardOS recipes.
 kde/plasma-all.html            # KDE Plasma 6, Wayland session
 x/sddm.html                    # login screen
 kde/dolphin.html               # KDE minimal: files

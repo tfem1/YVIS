@@ -17,7 +17,7 @@ Status legend: ✅ done and tested · 🔨 in progress · ⏳ not started
 | 6a | Long critical test suites (Glibc, Binutils, GCC) as a separate verification run, compared with the book's known failures | ⏳ |
 | 6b | Security patches from the LFS advisories for 13.1 | ⏳ |
 | 6c | Base system rebuilt as `.yon` packages (see "Packaging the base" below) | ⏳ |
-| 7 | System configuration (chapter 9) and kernel 7.1.8 (chapter 10), `yvis-base` workflow | ✅ run 43388175924 (kernel built in 2 h 02), checks and QEMU boot in run 43425563873 |
+| 7 | System configuration (chapter 9) and kernel 7.1.8 (chapter 10), `graveyard-base` workflow | ✅ run 43388175924 (kernel built in 2 h 02), checks and QEMU boot in run 43425563873 |
 | 7a | Initramfs (`system/initramfs/`: installed root or live medium, rescue shell) | ✅ |
 | 7b | Kernel build tree for out-of-tree modules (NVIDIA) | ⏳ |
 | 8 | Console live ISO, BIOS and UEFI, disc and USB stick, booted in QEMU by `iso/boot-test.sh` | ✅ run 43478718718: 553 MiB, the four boots pass |
@@ -48,17 +48,17 @@ is then packed and installed through the package manager. Plan:
 How: the BLFS book, like the LFS book for the base. `blfs/resolve.py` reads
 the pages of the targets (`blfs/targets`), follows their required and
 recommended dependencies, and writes the build order (`blfs/order.tsv`);
-`blfs/choices` records every dependency YVIS drops or adds, and why. For
+`blfs/choices` records every dependency GraveyardOS drops or adds, and why. For
 BLFS 13.1-systemd, KDE Plasma, SDDM, NetworkManager, PipeWire, Bluetooth,
 Xwayland and the portals come to 209 pages, with no cycle left. Next: one
 Yone recipe per page (the base's DESTDIR generator), then Hyprland,
-Quickshell, Flatpak and kitty as YVIS recipes (not in BLFS).
+Quickshell, Flatpak and kitty as GraveyardOS recipes (not in BLFS).
 
 | # | Milestone | Status |
 |---|---|---|
 | 9 | Mesa, Wayland, PipeWire, NetworkManager | ⏳ |
-| 10 | KDE Plasma (Wayland) + SDDM with YVIS theme | ⏳ |
-| 10b | Hyprland + Quickshell + user dotfiles (`yvis-hyprland-config`), selectable in SDDM | 🔨 dotfiles support YVIS (branch `yvis` of tfem1/dotfiles: install via Yone, updates via `yone check-updates`, YVIS themes) |
+| 10 | KDE Plasma (Wayland) + SDDM with GraveyardOS theme | ⏳ |
+| 10b | Hyprland + Quickshell + user dotfiles (`graveyard-hyprland-config`), selectable in SDDM | 🔨 dotfiles support GraveyardOS (branch `yvis` of tfem1/dotfiles: install via Yone, updates via `yone check-updates`, GraveyardOS themes) |
 | 11 | Flatpak + Flathub preconfigured + portals (KDE and Hyprland) | ⏳ |
 | 12 | Logo approved and branding integrated (Fastfetch, SDDM, boot, KDE) | 🔨 Fastfetch ASCII supplied by the user |
 | 13 | Live ISO (over 2 GiB allowed: hosted on SourceForge), measured in CI, boot menu: default / NVIDIA / safe graphics | ⏳ |
@@ -67,7 +67,7 @@ Quickshell, Flatpak and kitty as YVIS recipes (not in BLFS).
 
 | # | Milestone | Status |
 |---|---|---|
-| 14 | YVIS Installer (graphical): KDE / Hyprland / both, NVIDIA option pre-selected by `yvis-gpu-detect`, Minimal/Desktop/Gaming profiles | ⏳ (GPU detection ✅) |
+| 14 | GraveyardOS Installer (graphical): KDE / Hyprland / both, NVIDIA option pre-selected by `graveyard-gpu-detect`, Minimal/Desktop/Gaming profiles | ⏳ (GPU detection ✅) |
 | 15 | Automated install + reboot test in QEMU (UEFI/OVMF) | ⏳ |
 | 16 | AMD GPU stack; NVIDIA open kernel modules (`nvidia.sfs` boot entry) with module signing | ⏳ |
 
@@ -90,8 +90,8 @@ sources (PKGBUILD) under 0BSD since RFC 40, so they may be converted:
    prepare/build/package functions with `$srcdir`/`$pkgdir` mapped to
    Yone's directories. Split packages (several `pkgname`) become several
    recipes.
-2. A name map from Arch to YVIS for what the base already has (Arch's
-   `gcc-libs` is in YVIS's `gcc`, ...), checked against the base's files.
+2. A name map from Arch to GraveyardOS for what the base already has (Arch's
+   `gcc-libs` is in GraveyardOS's `gcc`, ...), checked against the base's files.
 3. The build order from the dependencies; CI builds each wave in the
    system of the previous ones, records failures and keeps going.
 4. Waves by popularity (Arch's pkgstats): the 1000 most installed first,

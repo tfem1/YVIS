@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fetch the kernel configuration YVIS starts from: Arch Linux's, for the
+# Fetch the kernel configuration GraveyardOS starts from: Arch Linux's, for the
 # kernel series the book builds. It enables about every driver as a module,
 # which is what a system installed on unknown hardware needs; the book's own
 # method (defconfig, then a menu) builds a kernel for one machine.

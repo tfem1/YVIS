@@ -40,7 +40,7 @@ book's own commands rather than a rewrite of them:
    `toolchain`) then chapter 8 (job `system`), each section in the context
    the book expects (user `lfs`, root on the host, or the chroot).
 
-YVIS-specific choices live outside the generated files:
+GRAVEYARD-specific choices live outside the generated files:
 
 | File | Purpose |
 |---|---|
@@ -55,10 +55,10 @@ YVIS-specific choices live outside the generated files:
 Like the tools that build packages for a living (jhalfs, Debian's sbuild,
 Arch's makechrootpkg), a section runs **detached from the terminal**: in its
 own session with no controlling terminal, stdin on `/dev/null`, all output
-in `$LFS/.yvis/logs/<section>.log`. The console shows one line per section
+in `$LFS/.graveyard/logs/<section>.log`. The console shows one line per section
 and the end of the log if it fails; the logs are uploaded as the
 `lfs-system-logs` artifact. A section that does not end within
-`YVIS_SECTION_TIMEOUT` (60 minutes) is killed and fails the build.
+`GRAVEYARD_SECTION_TIMEOUT` (60 minutes) is killed and fails the build.
 
 An unattended build must never wait for a person. The book is written for
 a reader at a keyboard and a few of its commands are interactive
@@ -68,7 +68,7 @@ its log instead of a job that hangs for hours.
 
 ### A system for other machines
 
-The book builds a system for the machine it is built on. YVIS is built in
+The book builds a system for the machine it is built on. GraveyardOS is built in
 CI and installed elsewhere, so the cases the book flags for that
 (section 8.2.3) are applied through `lfs/edits`: GMP is configured with
 `--host=none-linux-gnu` and Libffi with `--with-gcc-arch=x86-64`. Without
@@ -96,28 +96,28 @@ Not covered yet: the long test suites the book calls critical (Glibc,
 Binutils, GCC). They take hours and have known failures to compare against
 the book's list, so they belong to a separate verification run (ROADMAP).
 
-### YVIS base: chapters 9 and 10
+### GraveyardOS base: chapters 9 and 10
 
 The book's chapters 9 and 10 configure and boot the reader's machine (its
-network card, its disk, a kernel for its hardware). YVIS's own sections, in
-`lfs/yvis/` and run by `lfs/build.sh` like the book's, do it for a system
-installed elsewhere. The `yvis-base` workflow starts from the `lfs-system`
+network card, its disk, a kernel for its hardware). GraveyardOS's own sections, in
+`lfs/graveyard/` and run by `lfs/build.sh` like the book's, do it for a system
+installed elsewhere. The `graveyard-base` workflow starts from the `lfs-system`
 artifact of an `lfs` run:
 
 - **System configuration** (`system/rootfs/`, each file citing its section
   of the book): wired network by DHCP on any Ethernet card, hostname,
   locale and console defaults the installer will change, the book's
-  `/etc/profile`, `inputrc` and `shells` verbatim, `os-release` for YVIS,
+  `/etc/profile`, `inputrc` and `shells` verbatim, `os-release` for GraveyardOS,
   service presets, an empty `machine-id` so that every installation gets
   its own.
 - **Kernel** (`kernel/`): Linux 7.1.8 configured from `kernel/base.config`
   (Arch Linux's configuration for the same version, fetched by the
-  `kernel-config` workflow and pinned by SHA-256) plus `kernel/yvis.config`
+  `kernel-config` workflow and pinned by SHA-256) plus `kernel/graveyard.config`
   (six differences). `kernel/required` lists the options the book says the
-  system needs to boot (10.3.1) and the ones YVIS needs; the build stops if
+  system needs to boot (10.3.1) and the ones GraveyardOS needs; the build stops if
   the final `.config` lacks one. About two hours on a CI runner
   (`lfs/timeouts`).
-- **Checks**: `lfs/verify-yvis.sh` from inside the system, then
+- **Checks**: `lfs/verify-graveyard.sh` from inside the system, then
   `kernel/boot-test.sh` boots a copy of it in QEMU on a plain emulated
   x86-64 CPU and requires systemd to be `running` with no failed unit,
   modules to load, and the network to get its address by DHCP.
@@ -128,16 +128,16 @@ Left to the installer, because they depend on the target disk: `/etc/fstab`
 ### Initramfs and live ISO
 
 The book boots without an initramfs, the reader's disk driver built into
-the kernel. YVIS's drivers are modules, so the kernel first runs
+the kernel. GraveyardOS's drivers are modules, so the kernel first runs
 `system/initramfs/init`: udev loads the drivers of the storage present,
 then the script mounts either the installed root (`root=UUID=…`) or the
-live medium (`yvis.live=<label>`: `/yvis/rootfs.sfs` read-only under a
+live medium (`graveyard.live=<label>`: `/graveyard/rootfs.sfs` read-only under a
 writable layer kept in memory), and hands over to systemd. If something is
 missing it says what, lists the storage it found and opens a shell.
-`yvis-mkinitramfs` builds the image from the installed system's own
+`graveyard-mkinitramfs` builds the image from the installed system's own
 programs and refuses to write one in which udev cannot load modules.
 
-The `yvis-iso` workflow builds the ISO from a `yvis-base` artifact
+The `graveyard-iso` workflow builds the ISO from a `graveyard-base` artifact
 (`iso/build.sh`): the system as a zstd squashfs, the kernel, the initramfs,
 and GRUB for BIOS and UEFI made by the system's own GRUB. The host only
 lends tools (mksquashfs, xorriso, mtools). `iso/boot-test.sh` then boots
@@ -157,17 +157,17 @@ Local checks (root, no network):
 
 ```bash
 python3 -m unittest discover -s lfs/tests
-sudo YVIS_LFS_NO_APT=1 bash lfs/tests/build-runner.sh
+sudo GRAVEYARD_LFS_NO_APT=1 bash lfs/tests/build-runner.sh
 sh tools/tests/gpu-detect.sh
 ```
 
 ## The site
 
 One static page (`site/`), published by Cloudflare Pages at every
-push to `main` (no build step): https://yvis.pages.dev
+push to `main` (no build step): https://graveyardos.pages.dev
 
-Cloudflare settings (Workers & Pages > yvis > Settings > Build):
+Cloudflare settings (Workers & Pages > graveyard > Settings > Build):
 framework preset None, build command empty, build output directory `site`.
 
-`yvis-icon.svg` is a copy of `branding/yvis-icon.svg`: Cloudflare publishes
+`graveyard-icon.svg` is a copy of `branding/graveyard-icon.svg`: Cloudflare publishes
 this directory only.
