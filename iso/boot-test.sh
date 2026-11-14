@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Boots the live ISO in QEMU the way a PC would and checks the running
-# system: from a disc and from a USB stick, with BIOS and with UEFI firmware.
+# system: from a disc and from a USB stick, with BIOS and with UEFI firmware;
+# with YVIS_VENTOY_IMG (iso/ventoy-stick.sh), also from a Ventoy stick.
 #
 #   iso/boot-test.sh <iso> [work directory]       needs qemu-system-x86, ovmf
 #
@@ -34,6 +35,8 @@ echo "YVIS-TEST firmware=$([ -d /sys/firmware/efi ] && echo uefi || echo bios)"
 echo "YVIS-TEST cmdline=$(cat /proc/cmdline)"
 echo "YVIS-TEST root=$(findmnt -no FSTYPE,SOURCE /)"
 echo "YVIS-TEST medium=$(findmnt -no FSTYPE /run/yvis/medium)"
+echo "YVIS-TEST found-by=$(cat /run/yvis/found-by 2> /dev/null)"
+echo "YVIS-TEST host=$(findmnt -no FSTYPE /run/yvis/host 2> /dev/null)"
 echo "YVIS-TEST system=$(findmnt -no FSTYPE /run/yvis/system)"
 echo "YVIS-TEST writable=$(touch /root/written-by-the-test && echo yes || echo no)"
 echo "YVIS-TEST medium-untouched=$(touch /run/yvis/medium/x 2> /dev/null && echo no || echo yes)"
@@ -69,8 +72,8 @@ credentials=(
 )
 
 fail=0
-boot() { # name: bios-disc | bios-usb | uefi-disc | uefi-usb
-  local name=$1 fw=${1%-*} medium=${1#*-} report=$work/$1.report rc=0
+boot() { # name: bios-disc | bios-usb | uefi-disc | uefi-usb | bios-ventoy | uefi-ventoy
+  local name=$1 fw=${1%-*} medium=${1#*-} report=$work/$1.report rc=0 found=label
   local machine=() drive=()
   if [ "$fw" = uefi ]; then
     cp "$ovmf/OVMF_VARS_4M.fd" "$work/$name.vars"
@@ -78,7 +81,12 @@ boot() { # name: bios-disc | bios-usb | uefi-disc | uefi-usb
       -drive "if=pflash,format=raw,readonly=on,file=$ovmf/OVMF_CODE_4M.fd"
       -drive "if=pflash,format=raw,file=$work/$name.vars")
   fi
-  if [ "$medium" = usb ]; then
+  if [ "$medium" = ventoy ]; then
+    [ -s "${YVIS_VENTOY_IMG:-}" ] || { echo "$name: YVIS_VENTOY_IMG is not set (iso/ventoy-stick.sh)" >&2; exit 1; }
+    found=ventoy
+    drive=(-device qemu-xhci -drive "if=none,id=stick,file=$YVIS_VENTOY_IMG,format=raw"
+      -device "usb-storage,drive=stick,bootindex=1")
+  elif [ "$medium" = usb ]; then
     drive=(-device qemu-xhci -drive "if=none,id=stick,file=$iso,format=raw,readonly=on"
       -device "usb-storage,drive=stick,bootindex=1")
   else
@@ -103,7 +111,8 @@ boot() { # name: bios-disc | bios-usb | uefi-disc | uefi-usb
   check "no failed unit" '^YVIS-TEST failed=$'
   check "it is YVIS" '^YVIS-TEST os=yvis$'
   check "booted by $fw firmware" "^YVIS-TEST firmware=$fw\$"
-  check "from the medium's own menu entry" "^YVIS-TEST cmdline=BOOT_IMAGE=/boot/vmlinuz yvis.live=$label\$"
+  check "from the medium's own menu entry" "^YVIS-TEST cmdline=.*yvis.live=$label( |\$)"
+  check "the medium was found by $found" "^YVIS-TEST found-by=$found\$"
   check "the root is the live overlay" '^YVIS-TEST root=overlay yvis-live$'
   check "over the read-only system image" '^YVIS-TEST system=squashfs$'
   check "on the ISO file system" '^YVIS-TEST medium=iso9660$'
@@ -118,7 +127,7 @@ boot() { # name: bios-disc | bios-usb | uefi-disc | uefi-usb
   fi
 }
 
-for name in ${YVIS_BOOT_CASES:-bios-disc uefi-disc bios-usb uefi-usb}; do boot "$name"; done
+for name in ${YVIS_BOOT_CASES:-bios-disc uefi-disc bios-usb uefi-usb ${YVIS_VENTOY_IMG:+bios-ventoy uefi-ventoy}}; do boot "$name"; done
 
 if [ "$fail" -ne 0 ]; then
   # The menu gives the kernel no serial console, so the failed boots said

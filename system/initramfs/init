@@ -6,7 +6,13 @@
 #   root=UUID=… | LABEL=… | PARTUUID=… | PARTLABEL=… | /dev/…   installed system
 #   yvis.live=<label>    live system: the medium with that label holds
 #                        /yvis/rootfs.sfs, mounted read-only under a
-#                        writable layer kept in memory
+#                        writable layer kept in memory. The medium is a
+#                        disc or USB stick with that label, or the ISO file
+#                        Ventoy booted (see below), or the file yvis.iso
+#                        names on any partition
+#   yvis.iso=<path>      the ISO is a file, for boot managers that boot an
+#                        ISO file through GRUB's loopback (path from the
+#                        root of its partition)
 #   yvis.break           stop in a shell before leaving the initramfs
 #   ro | rw, rootflags=, rootfstype=, init=   as usual
 #
@@ -37,7 +43,7 @@ mountpoint -q /sys || mount -t sysfs -o nosuid,noexec,nodev sysfs /sys
 mountpoint -q /dev || mount -t devtmpfs -o mode=755,nosuid devtmpfs /dev
 mountpoint -q /run || mount -t tmpfs -o mode=755,nosuid,nodev tmpfs /run
 
-root='' live='' rootflags='' rootfstype='' mode=ro init=/usr/lib/systemd/systemd stop=''
+root='' live='' iso='' rootflags='' rootfstype='' mode=ro init=/usr/lib/systemd/systemd stop=''
 for arg in $(cat /proc/cmdline); do
   case $arg in
     root=*) root=${arg#root=} ;;
@@ -47,6 +53,7 @@ for arg in $(cat /proc/cmdline); do
     ro) mode=ro ;;
     rw) mode=rw ;;
     yvis.live=*) live=${arg#yvis.live=} ;;
+    yvis.iso=*) iso=${arg#yvis.iso=} ;;
     yvis.break) stop=yes ;;
   esac
 done
@@ -82,13 +89,158 @@ device_of() { # root= value
   esac
 }
 
+# --- Where the live medium is ---------------------------------------------
+#
+# 1. A device with the medium's label: a disc, a USB stick the ISO was
+#    written to, or the virtual disc of Ventoy's "hook" mode
+#    (/dev/mapper/ventoy, which has no /dev/disk/by-label link: blkid looks
+#    at every block device).
+# 2. The ISO file Ventoy booted. The ISO is marked "Ventoy compatible"
+#    (iso/build.sh), so Ventoy boots it as it is and leaves a 512-byte
+#    record saying where the file is (https://www.ventoy.net/en/
+#    doc_compatible_format.html): an EFI variable with UEFI firmware, low
+#    memory with a BIOS. The file is on a partition of the Ventoy stick
+#    (exFAT, NTFS, FAT, ext4, XFS or UDF); it is attached to a loop device.
+# 3. yvis.iso=<path>: that file on any partition.
+# Whatever is found must carry the medium's label.
+
+VTOY_SIG=20207777772e76656e746f792e6e6574   # "  www.ventoy.net"
+VTOY_VAR=VentoyOsParam-77772020-2e77-6576-6e74-6f792e6e6574
+
+hexdump_of() { # file, offset, length: lowercase hex, no spaces
+  od -An -v -tx1 -j "$2" -N "$3" "$1" 2> /dev/null | tr -d ' \n'
+}
+
+# The record as 1024 hex digits, if its signature and checksum are right.
+ventoy_record() {
+  local hex='' sum i
+  if [ -d /sys/firmware/efi ]; then
+    mountpoint -q /sys/firmware/efi/efivars \
+      || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2> /dev/null
+    # 4 bytes of attributes, then the record
+    hex=$(hexdump_of "/sys/firmware/efi/efivars/$VTOY_VAR" 4 512)
+  fi
+  if [ "${hex:0:32}" != "$VTOY_SIG" ]; then
+    # BIOS: in low memory, which only mmap can read (vtoy-param.c)
+    hex=$(/usr/lib/yvis/vtoy-param 2> /dev/null) || return 1
+  fi
+  [ ${#hex} -eq 1024 ] && [ "${hex:0:32}" = "$VTOY_SIG" ] || return 1
+  sum=0
+  for ((i = 0; i < 1024; i += 2)); do sum=$(((sum + 16#${hex:i:2}) & 255)); done
+  [ "$sum" -eq 0 ] || return 1
+  echo "$hex"
+}
+
+le16() { echo $((16#${1:2:2}${1:0:2})); } # 4 hex digits, little-endian
+
+# The ISO file the record names, attached to a loop device: prints it.
+ventoy_medium() {
+  local rec=$1 guid sig part fs path='' i name dev d n type
+  guid=${rec:34:32}
+  part=$(le16 "${rec:82:4}")
+  fs=$(le16 "${rec:86:4}")
+  sig=${rec:962:8}
+  for ((i = 90; i < 858; i += 2)); do
+    [ "${rec:i:2}" = 00 ] && break
+    path+="\\x${rec:i:2}"
+  done
+  path=$(printf '%b' "$path")
+  # the disk whose first sector carries Ventoy's GUID (0x180) and signature (0x1b8)
+  for d in /sys/block/*; do
+    name=${d##*/}
+    case $name in loop* | ram* | dm-* | sr* | zram* | md*) continue ;; esac
+    [ "$(hexdump_of "/dev/$name" 384 16)" = "$guid" ] || continue
+    [ "$(hexdump_of "/dev/$name" 440 4)" = "$sig" ] || continue
+    case $name in *[0-9]) dev=/dev/${name}p$part ;; *) dev=/dev/$name$part ;; esac
+    break
+  done
+  [ -n "${dev:-}" ] || return 1
+  wait_for "$dev" 10 || return 1
+  case $fs in 0) type=exfat ;; 1) type=ntfs3 ;; 2) type=ext4 ;; 3) type=xfs ;; 4) type=udf ;; 5) type=vfat ;; *) return 1 ;; esac
+  n=$(iso_file_on "$dev" "$path" "$type") || return 1
+  say "Ventoy: $path on $dev ($type)" >&2
+  echo "$n"
+}
+
+# Attach <path> of the partition <dev> to a loop device; prints the device.
+iso_file_on() { # device, path, [type]
+  local mnt=/run/yvis/host loop
+  mkdir -p "$mnt"
+  if ! mountpoint -q "$mnt"; then
+    [ -z "${3:-}" ] || modprobe "$3" 2> /dev/null
+    # shellcheck disable=SC2086  # no type: let mount find it
+    mount -o ro ${3:+-t $3} "$1" "$mnt" 2> /dev/null || return 1
+  fi
+  if [ -f "$mnt$2" ] && loop=$(losetup -r -f --show "$mnt$2" 2> /dev/null); then
+    echo "$loop"
+    return 0
+  fi
+  umount "$mnt" 2> /dev/null
+  return 1
+}
+
+# yvis.iso=<path>: look on every partition that has a file system.
+iso_on_partitions() {
+  local dev
+  for dev in $(blkid -c /dev/null -o device 2> /dev/null); do
+    case $(blkid -c /dev/null -s TYPE -o value "$dev") in
+      exfat | vfat | ntfs | ntfs3 | ext2 | ext3 | ext4 | xfs | btrfs | udf | f2fs) ;;
+      *) continue ;;
+    esac
+    iso_file_on "$dev" "$iso" && return 0
+  done
+  return 1
+}
+
+has_label() { [ "$(blkid -c /dev/null -s LABEL -o value "$1" 2> /dev/null)" = "$live" ]; }
+
+find_medium() { # prints the device and records how it was found
+  local n=0 dev rec
+  modprobe -a loop iso9660 dm_mod exfat ntfs3 vfat nls_utf8 2> /dev/null
+  while [ "$n" -lt 40 ]; do
+    dev=$(blkid -c /dev/null -l -o device -t LABEL="$live" 2> /dev/null)
+    if [ -n "$dev" ]; then
+      echo label > /run/yvis/found-by
+      echo "$dev"
+      return 0
+    fi
+    if rec=$(ventoy_record) && dev=$(ventoy_medium "$rec"); then
+      if has_label "$dev"; then
+        echo ventoy > /run/yvis/found-by
+        echo "$dev"
+        return 0
+      fi
+      say "the ISO Ventoy booted is not the medium '$live'" >&2
+      losetup -d "$dev"
+      umount /run/yvis/host 2> /dev/null
+    fi
+    if [ -n "$iso" ] && dev=$(iso_on_partitions); then
+      if has_label "$dev"; then
+        echo iso-file > /run/yvis/found-by
+        echo "$dev"
+        return 0
+      fi
+      losetup -d "$dev"
+      umount /run/yvis/host 2> /dev/null
+    fi
+    sleep 1
+    n=$((n + 1))
+    if [ $((n % 5)) -eq 0 ]; then
+      udevadm trigger --action=add --subsystem-match=block
+      udevadm settle --timeout=5
+    fi
+  done
+  return 1
+}
+
 mount_live() {
-  local dev=/dev/disk/by-label/$live m=/run/yvis
+  local dev m=/run/yvis
   modprobe -a loop squashfs overlay 2> /dev/null
-  wait_for "$dev" 40 || { rescue "no medium labelled '$live' was found"; return 1; }
   mkdir -p $m/medium $m/system $m/changes
-  mountpoint -q $m/medium || mount -o ro "$dev" $m/medium \
-    || { rescue "cannot mount the medium $dev"; return 1; }
+  if ! mountpoint -q $m/medium; then
+    dev=$(find_medium) || { rescue "no medium labelled '$live' was found (disc, USB stick, Ventoy)"; return 1; }
+    mount -t iso9660 -o ro "$dev" $m/medium || { rescue "cannot mount the medium $dev"; return 1; }
+  fi
   [ -f $m/medium/yvis/rootfs.sfs ] || { rescue "the medium has no /yvis/rootfs.sfs"; return 1; }
   mountpoint -q $m/system || mount -t squashfs -o ro,loop $m/medium/yvis/rootfs.sfs $m/system \
     || { rescue "cannot mount the system image"; return 1; }

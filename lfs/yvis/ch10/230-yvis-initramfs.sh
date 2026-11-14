@@ -11,6 +11,10 @@ cp -R /.yvis/files/system/initramfs/live /usr/share/yvis/initramfs/live
 chown -R root:root /usr/share/yvis
 find /usr/share/yvis/initramfs/live -type d -exec chmod 755 {} +
 find /usr/share/yvis/initramfs/live -type f -exec chmod 644 {} +
+# finds the ISO file Ventoy booted with a BIOS (reads low memory)
+install -d /usr/lib/yvis
+gcc -O2 -Wall -o /usr/lib/yvis/vtoy-param /.yvis/files/system/initramfs/vtoy-param.c
+strip --strip-unneeded /usr/lib/yvis/vtoy-param
 
 # --- block 2: the image for the kernel built in the previous section
 yvis-mkinitramfs "$(cat /.yvis/kernel-release)"

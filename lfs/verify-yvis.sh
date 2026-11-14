@@ -94,6 +94,9 @@ for f in init dev/console usr/bin/bash usr/bin/mount usr/sbin/switch_root usr/bi
   "usr/lib/modules/$kver/modules.dep" live/etc/motd; do
   works "holds /$f" grep -qx "$f" <<<"$listing"
 done
+works "holds Ventoy's record reader (vtoy-param)" grep -qx usr/lib/yvis/vtoy-param <<<"$listing"
+works "exFAT driver (Ventoy sticks keep the ISO there)" grep -Eq '/exfat\.ko' <<<"$listing"
+works "NTFS driver (the other file system of Ventoy sticks)" grep -Eq '/ntfs3\.ko' <<<"$listing"
 # udev opens libkmod at run time: without it, it loads no driver at all
 works "holds libkmod, which udev needs to load drivers" grep -Eq '/libkmod\.so\.2$' <<<"$listing"
 for mod in nvme ahci usb-storage xhci-pci sd_mod sr_mod squashfs overlay isofs loop btrfs xfs vfat virtio_blk; do

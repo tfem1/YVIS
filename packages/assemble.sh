@@ -4,7 +4,8 @@
 #
 #   sudo packages/assemble.sh <root>
 #
-#   8.27 Shadow    accounts in /etc/shadow and /etc/gshadow (pwconv, grpconv)
+#   8.27 Shadow    accounts in /etc/shadow and /etc/gshadow (pwconv, grpconv),
+#                  defaults of useradd
 #   8.77 Systemd   services enabled per the presets, including YVIS's
 #   9  (YVIS)      no waiting for the network at boot
 # The shared library cache and the Info directory are rebuilt by Yone's
@@ -16,6 +17,9 @@ root=${1:?root}
 chroot "$root" /usr/bin/env -i PATH=/usr/bin:/usr/sbin /usr/bin/bash -e -c '
   pwconv
   grpconv
+  mkdir -p /etc/default
+  useradd -D --gid 999
+  sed -i "/MAIL/s/yes/no/" /etc/default/useradd
   systemctl preset-all
   systemctl disable systemd-networkd-wait-online.service
 ' < /dev/null

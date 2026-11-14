@@ -102,6 +102,18 @@ jobs:
       - name: Boot the ISO (disc and USB stick, BIOS and UEFI)
         run: bash iso/boot-test.sh "$RUNNER_TEMP"/iso/yvis-*.iso "$RUNNER_TEMP/boot"
 
+      # The same ISO copied to a stick prepared with the current Ventoy release,
+      # which boots it by itself (iso/ventoy-stick.sh), with both firmwares.
+      - name: Boot the ISO from a Ventoy stick (BIOS and UEFI)
+        if: always()
+        run: |
+          sudo apt-get install -y -qq exfatprogs > /dev/null
+          sudo bash iso/ventoy-stick.sh "$(ls "$RUNNER_TEMP"/iso/yvis-*.iso)" "$RUNNER_TEMP/ventoy.img"
+          sudo chmod a+r "$RUNNER_TEMP/ventoy.img"
+          echo "Ventoy $(cat "$RUNNER_TEMP/ventoy.img.ventoy-version")" >> "$GITHUB_STEP_SUMMARY"
+          YVIS_VENTOY_IMG="$RUNNER_TEMP/ventoy.img" YVIS_BOOT_CASES="bios-ventoy uefi-ventoy" \
+            bash iso/boot-test.sh "$(ls "$RUNNER_TEMP"/iso/yvis-*.iso)" "$RUNNER_TEMP/boot"
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:

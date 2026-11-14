@@ -22,7 +22,7 @@ SHARE = "/usr/share/yvis/initramfs"
 # Programs: found on PATH. Enough to mount a root file system and to repair
 # a boot by hand from the rescue shell.
 PROGRAMS = [
-    "bash", "cat", "cp", "ls", "ln", "mkdir", "sleep", "dmesg",
+    "bash", "cat", "cp", "ls", "ln", "mkdir", "sleep", "dmesg", "dd", "od", "tr",
     "mount", "umount", "mountpoint", "switch_root", "blkid", "losetup", "setsid",
     "kmod", "udevadm",
 ]
@@ -44,6 +44,8 @@ MODULE_DIRS = [
     "drivers/pci/controller", "drivers/hid", "drivers/input/keyboard",
     "fs/squashfs", "fs/overlayfs", "fs/isofs", "fs/udf", "fs/fat", "fs/exfat",
     "fs/ext4", "fs/btrfs", "fs/xfs", "fs/f2fs", "fs/erofs", "fs/nls",
+    # the file systems a Ventoy stick (or another boot manager) keeps ISOs on
+    "fs/ntfs3",
 ]
 MODULE_FILES = ["modules.order", "modules.builtin", "modules.builtin.modinfo"]
 
@@ -171,6 +173,12 @@ def build(release, output, share=SHARE, sysroot="/"):
     os.symlink("bash", os.path.join(root, "usr/bin/sh"))
     for name in KMOD_NAMES:
         os.symlink("../bin/kmod", os.path.join(root, "usr/sbin", name))
+
+    # Finds the ISO file Ventoy booted with a BIOS (system/initramfs/vtoy-param.c)
+    helper = "/usr/lib/yvis/vtoy-param"
+    if not os.path.exists(helper):
+        die(f"{helper} is missing (yvis-initramfs-tools): Ventoy could not boot the image")
+    program(helper)
 
     for soname in DLOPENED:
         lib = find_library(soname)

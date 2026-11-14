@@ -333,7 +333,10 @@ def topdir(tarball, sources):
     if path and os.path.exists(path):
         with tarfile.open(path) as t:
             for m in t:
-                return m.name.lstrip("./").split("/")[0]
+                # skip "." and "./" (vim's tarball starts with them)
+                first = m.name.lstrip("./").split("/")[0]
+                if first:
+                    return first
     name = re.sub(r"\.(tar\.\w+|tgz)$", "", tarball)
     return re.sub(r"-src$", "", name)
 
@@ -495,6 +498,13 @@ def yvis_recipes(build_id):
         open(os.path.join(initramfs, "init")).read().rstrip("\n"),
         "YVIS_EOF",
         'chmod 755 "$PKGDIR/usr/share/yvis/initramfs/init"',
+        "# finds the ISO file Ventoy booted with a BIOS (reads low memory)",
+        "cat > vtoy-param.c <<'YVIS_EOF'",
+        open(os.path.join(initramfs, "vtoy-param.c")).read().rstrip("\n"),
+        "YVIS_EOF",
+        'install -d "$PKGDIR/usr/lib/yvis"',
+        'gcc -O2 -Wall -o "$PKGDIR/usr/lib/yvis/vtoy-param" vtoy-param.c',
+        'strip --strip-unneeded "$PKGDIR/usr/lib/yvis/vtoy-param"',
     ])
     recipes["yvis-initramfs-tools"] = recipe_text(
         "yvis-initramfs-tools", version, "Builds the YVIS initramfs (installed system or live medium)",

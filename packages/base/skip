@@ -12,3 +12,7 @@ ch-system-gcc#19
 # 8.72 Texinfo: regenerating /usr/share/info/dir is the Info hook's job
 # (packages/base/overrides/texinfo.post): no package owns that file.
 ch-system-texinfo#6
+# 8.27 Shadow: the defaults of useradd (/etc/default/useradd) are set up on
+# the machine by packages/assemble.sh: useradd -D takes no --prefix.
+ch-system-shadow#8
+ch-system-shadow#9

@@ -57,7 +57,10 @@ for name in "${order[@]}"; do
     cp "$sources/$f" "$d/.yone-sources/$f"
   done
 done
-allowed='^(packages|tmp|var/tmp|root|dev|run|proc|sys)(/|$)'
+# What the build machine may change: the build area, temporary files, and
+# the shared library cache (the install rules of zlib and e2fsprogs run
+# ldconfig; the cache is rebuilt on the installed system by a hook).
+allowed='^(packages|tmp|var/tmp|root|dev|run|proc|sys|var/cache/ldconfig)(/|$)|^etc/ld\.so\.cache$'
 failed=() stray=()
 for name in "${order[@]}"; do
   [ -f "$recipes/$name/YONEBUILD" ] || { echo "no recipe $name" >&2; exit 1; }
@@ -87,6 +90,7 @@ for name in "${order[@]}"; do
     printf 'FAIL %4ds  (exit %d)%s\n' $((SECONDS - start)) "$rc" "${writes:+  STRAY WRITES: $(wc -l <<< "$writes")}"
     tail -n 25 "$work/logs/$name.log" | sed 's/^/      | /'
   fi
+  [ -z "$writes" ] || head -n 10 <<< "$writes" | sed 's|^|      written outside $PKGDIR: /|'
 done
 
 chroot "$root" /usr/local/bin/yone repo-index /packages/repo --name base \

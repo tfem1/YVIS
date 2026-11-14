@@ -1,0 +1,3 @@
+# /bin/sh is bash: the book makes the link with the temporary bash of
+# chapter 6 and never again, so no final package owned it.
+ln -sf bash "$PKGDIR/usr/bin/sh"
