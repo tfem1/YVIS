@@ -46,9 +46,10 @@ jobs:
           sudo -E bash lfs/build.sh unpack "$RUNNER_TEMP"/yvis-base.tar.zst
           sudo rm -f "$RUNNER_TEMP"/yvis-base.tar.zst
           sudo mkdir -p "$LFS/sources"
+          sudo bash lfs/yvis/fetch-sources.sh "$LFS/sources"
           sudo ln -sf bash /bin/sh
 
-      - name: Initramfs and what else lfs/yvis holds
+      - name: Initramfs and what else lfs/yvis holds (new sections run, done ones are kept)
         run: sudo -E YVIS_REDO="${{ inputs.redo }}" bash lfs/build.sh run ch09 ch10
 
       - name: Verify the system

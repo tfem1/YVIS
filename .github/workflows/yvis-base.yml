@@ -60,6 +60,7 @@ jobs:
           sudo -E bash lfs/build.sh unpack "$RUNNER_TEMP"/*.tar.zst
           sudo rm -f "$RUNNER_TEMP"/*.tar.zst
           bash lfs/fetch-sources.sh "$RUNNER_TEMP/sources"
+          bash lfs/yvis/fetch-sources.sh "$RUNNER_TEMP/sources"
           sudo mkdir -p "$LFS/sources"
           sudo cp "$RUNNER_TEMP"/sources/* "$LFS/sources/"
           sudo ln -sf bash /bin/sh

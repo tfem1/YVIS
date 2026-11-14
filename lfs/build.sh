@@ -234,7 +234,7 @@ sync_files() {
   rm -rf "$STATE/files"
   mkdir -p "$STATE/files"
   local d
-  for d in system kernel; do
+  for d in system kernel installer tools; do
     if [ -d "$REPO/$d" ]; then cp -R "$REPO/$d" "$STATE/files/"; fi
   done
   echo "${YVIS_BUILD_ID:-$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo local)}" > "$STATE/files/build-id"

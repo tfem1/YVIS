@@ -1,4 +1,6 @@
-
   YVIS live session. Nothing is written to your disks: what you change here
   stays in memory and is gone at power off.
 
+  To install YVIS: run  yvis-installer --listen 0.0.0.0  and open the address
+  it prints in a web browser on another computer of the same network (the
+  desktop editions open the installer on this screen).

@@ -11,6 +11,16 @@ cp -R /.yvis/files/system/initramfs/live /usr/share/yvis/initramfs/live
 chown -R root:root /usr/share/yvis
 find /usr/share/yvis/initramfs/live -type d -exec chmod 755 {} +
 find /usr/share/yvis/initramfs/live -type f -exec chmod 644 {} +
+# the installer, in the live session only (installer/); it asks the live
+# system for the graphics card (tools/yvis-gpu-detect)
+live=/usr/share/yvis/initramfs/live
+install -d $live/usr/lib/yvis/installer $live/usr/bin
+cp -R /.yvis/files/installer/yvis-installer /.yvis/files/installer/yvis_install.py \
+  /.yvis/files/installer/web $live/usr/lib/yvis/installer/
+chmod 755 $live/usr/lib/yvis/installer/yvis-installer
+find $live/usr/lib/yvis/installer -type d -exec chmod 755 {} +
+ln -sfn ../lib/yvis/installer/yvis-installer $live/usr/bin/yvis-installer
+install -m 755 /.yvis/files/tools/yvis-gpu-detect $live/usr/bin/yvis-gpu-detect
 # finds the ISO file Ventoy booted with a BIOS (reads low memory)
 install -d /usr/lib/yvis
 gcc -O2 -Wall -o /usr/lib/yvis/vtoy-param /.yvis/files/system/initramfs/vtoy-param.c

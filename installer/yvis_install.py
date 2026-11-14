@@ -88,8 +88,11 @@ def facts(source=LIVE_SYSTEM):
     kernels = sorted(f[len("vmlinuz-"):] for f in os.listdir(os.path.join(source, "boot"))
                      if f.startswith("vmlinuz-")) if os.path.isdir(os.path.join(source, "boot")) else []
     zones = sorted(set(_lines(os.path.join(source, "usr/share/zoneinfo/zone1970.tab"), 2)))
-    locales = sorted({l.split()[0] for l in _lines(os.path.join(source, "usr/share/i18n/SUPPORTED"))
-                      if l.split()[-1] == "UTF-8"})
+    # only the locales compiled into the system (chapter 8 builds a few)
+    archive = os.path.join(source, "usr/lib/locale/locale-archive")
+    locales = sorted({re.sub(r"\.utf-?8$", ".UTF-8", l, flags=re.I)
+                      for l in _run(["localedef", "--list-archive", archive]).split()
+                      if re.search(r"\.utf-?8$", l, re.I)})
     keymaps = sorted({f.split(".")[0] for _, _, files in os.walk(os.path.join(source, "usr/share/keymaps/i386"))
                       for f in files if f.endswith(".map.gz")})
     def has(prog):

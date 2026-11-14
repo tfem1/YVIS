@@ -19,6 +19,13 @@ works() { # description, command...
   if "$@" > /dev/null 2>&1; then ok "$d"; else bad "$d"; fi
 }
 
+echo "== what the installer needs from the system"
+works "mkfs.vfat (dosfstools: the EFI partition)" mkfs.vfat --help
+works "sudo" sudo -V
+is "sudo is setuid root" "$(stat -c '%U %a' /usr/bin/sudo 2>&1)" "root 4111"
+works "the wheel group may use sudo" grep -qx '%wheel ALL=(ALL) ALL' /etc/sudoers.d/00-sudo
+works "the installer's engine loads" python3 -c "import sys; sys.path.insert(0, '/usr/share/yvis/initramfs/live/usr/lib/yvis/installer'); import yvis_install"
+
 echo "== identity"
 is "os-release: ID" "$(. /etc/os-release && echo "$ID")" "yvis"
 is "os-release: NAME" "$(. /etc/os-release && echo "$NAME")" "YVIS"
@@ -95,6 +102,8 @@ for f in init dev/console usr/bin/bash usr/bin/mount usr/sbin/switch_root usr/bi
   works "holds /$f" grep -qx "$f" <<<"$listing"
 done
 works "holds Ventoy's record reader (vtoy-param)" grep -qx usr/lib/yvis/vtoy-param <<<"$listing"
+works "the live session has the installer" grep -qx live/usr/lib/yvis/installer/yvis-installer <<<"$listing"
+works "and its page" grep -qx live/usr/lib/yvis/installer/web/app.js <<<"$listing"
 works "exFAT driver (Ventoy sticks keep the ISO there)" grep -Eq '/exfat\.ko' <<<"$listing"
 works "NTFS driver (the other file system of Ventoy sticks)" grep -Eq '/ntfs3\.ko' <<<"$listing"
 # udev opens libkmod at run time: without it, it loads no driver at all
