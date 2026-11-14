@@ -20,8 +20,16 @@ cleanup() {
 trap cleanup EXIT
 
 if [ -z "$version" ]; then
-  version=$(curl -fsSL https://api.github.com/repos/ventoy/Ventoy/releases/latest \
-    | sed -n 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p')
+  # The release page redirects to the latest tag. (Not the REST API: without
+  # a token it allows 60 requests an hour per address, and CI runners share
+  # addresses, so it answers 403.)
+  version=$(curl -fsSIL -o /dev/null -w '%{url_effective}' https://github.com/ventoy/Ventoy/releases/latest \
+    | sed -n 's|.*/tag/v\{0,1\}\([0-9][0-9.]*\)$|\1|p' || true)
+fi
+if [ -z "$version" ] && [ -n "${GH_TOKEN:-}" ]; then
+  version=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+    https://api.github.com/repos/ventoy/Ventoy/releases/latest \
+    | sed -n 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p' || true)
 fi
 [ -n "$version" ] || { echo "cannot find Ventoy's latest version" >&2; exit 1; }
 echo "==> Ventoy $version"
