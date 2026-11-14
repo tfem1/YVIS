@@ -160,3 +160,14 @@ python3 -m unittest discover -s lfs/tests
 sudo YVIS_LFS_NO_APT=1 bash lfs/tests/build-runner.sh
 sh tools/tests/gpu-detect.sh
 ```
+
+## The site
+
+One static page, published by Cloudflare Pages from this directory at every
+push to `main` (no build step): https://yvis.pages.dev
+
+Cloudflare settings (Workers & Pages > yvis > Settings > Build):
+framework preset None, build command empty, build output directory `site`.
+
+`yvis-icon.svg` is a copy of `branding/yvis-icon.svg`: Cloudflare publishes
+this directory only.
