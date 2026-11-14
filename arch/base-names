@@ -1,0 +1,8 @@
+# Arch package names the GraveyardOS base (LFS 13.1 + YVIS sections) already provides.
+filesystem glibc gcc gcc-libs libgcc libstdc++ binutils bash coreutils util-linux systemd systemd-libs dbus
+zlib bzip2 xz zstd lz4 file readline m4 bc flex tcl expect dejagnu pkgconf ncurses sed psmisc gettext bison grep
+gmp mpfr libmpc attr acl libcap libxcrypt shadow libtool gdbm gperf expat inetutils less perl perl-xml-parser
+intltool autoconf automake openssl kmod libelf libffi python python-flit-core python-wheel python-setuptools
+python-packaging python-markupsafe python-jinja ninja meson diffutils gawk findutils groff grub gzip iproute2 kbd
+libpipeline make patch tar texinfo vim man-db procps-ng e2fsprogs sudo dosfstools linux-api-headers tzdata
+man-pages iana-etc sh awk libsystemd libudev
