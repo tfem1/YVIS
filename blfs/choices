@@ -1,0 +1,35 @@
+# What YVIS changes in the dependencies BLFS gives (blfs/resolve.py).
+#   <page>  -<page> ...   drop a dependency of that package
+#   <page>  +<page> ...   add one
+#   *       -<page> ...   drop it everywhere
+# Every line says why.
+
+# Portal back ends of other desktops: KDE ships its own (in Plasma),
+# Hyprland its own (xdg-desktop-portal-hyprland, a YVIS recipe).
+x/xdg-desktop-portal.html  -x/xdg-desktop-portal-gtk.html -x/xdg-desktop-portal-wlr.html -gnome/xdg-desktop-portal-gnome.html -lxqt/xdg-desktop-portal-lxqt.html
+
+# Cycles the book breaks by building twice. YVIS builds once, in this order,
+# and drops the dependency of the first package on the second:
+#  - WirePlumber is PipeWire's session manager, needed at run time only
+multimedia/pipewire.html  -multimedia/wireplumber.html
+#  - FreeType without HarfBuzz (HarfBuzz, Qt and Pango shape text themselves)
+general/freetype2.html  -general/harfbuzz.html
+#  - Mesa without VA-API (video decoding on the GPU): added back later
+x/mesa.html  -multimedia/libva.html
+#  - gdk-pixbuf loads SVG through librsvg at run time
+x/gdk-pixbuf.html  -general/glycin.html
+
+# Wayland only: no X11 input drivers (Xwayland needs none). No OCR in the
+# screenshot tool (OpenCV and Tesseract are large), no crash-report upload,
+# no GTK theme bridge: GTK applications come as Flatpaks with their own.
+kde/plasma-all.html  -general/opencv.html -kde/tesseract.html -x/gtk3.html -x/x7driver.html#xorg-evdev-driver -x/x7driver.html#xorg-wacom-driver -general/python-modules.html#sentry-sdk -general/python-modules.html#pygdbmi
+multimedia/libcanberra.html  -x/gtk3.html -multimedia/gstreamer10.html
+basicnet/avahi.html  -x/gtk3.html
+# Qt Multimedia plays through FFmpeg; GStreamer is not needed for it.
+x/qt6.html  -multimedia/gst10-plugins-base.html -multimedia/gst10-plugins-good.html -multimedia/gst10-plugins-bad.html
+multimedia/pipewire.html  -multimedia/gstreamer10.html
+# Documentation readers and generators.
+xsoft/xdg-utils.html  -basicnet/lynx.html -basicnet/links.html
+general/vala.html  -general/graphviz.html
+# libwebp's image viewer
+general/libwebp.html  -multimedia/sdl2.html

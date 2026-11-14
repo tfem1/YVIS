@@ -43,6 +43,15 @@ is then packed and installed through the package manager. Plan:
 
 ## v0.2.0 — "desktop"
 
+How: the BLFS book, like the LFS book for the base. `blfs/resolve.py` reads
+the pages of the targets (`blfs/targets`), follows their required and
+recommended dependencies, and writes the build order (`blfs/order.tsv`);
+`blfs/choices` records every dependency YVIS drops or adds, and why. For
+BLFS 13.1-systemd, KDE Plasma, SDDM, NetworkManager, PipeWire, Bluetooth,
+Xwayland and the portals come to 209 pages, with no cycle left. Next: one
+Yone recipe per page (the base's DESTDIR generator), then Hyprland,
+Quickshell, Flatpak and kitty as YVIS recipes (not in BLFS).
+
 | # | Milestone | Status |
 |---|---|---|
 | 9 | Mesa, Wayland, PipeWire, NetworkManager | ⏳ |
