@@ -502,6 +502,23 @@ exec 9>&-
 "${Y[@]}" install multi >/dev/null && ok "a leftover lock file (crashed yone) does not block"
 "${Y[@]}" remove multi >/dev/null
 
+echo "== the recipe's variables stay in the recipe"
+# Vim's top-level configure does cd "${SRCDIR-src}": an exported SRCDIR
+# sends it to the wrong place.
+recipe r/envcheck <<'EOF'
+name = envcheck
+version = 1
+desc = Recipe variables are not exported
+@package
+[ -d "$SRCDIR" ] && [ -n "$PKGDIR" ]
+mkdir -p "$PKGDIR/usr/share/envcheck"
+sh -c 'echo "${SRCDIR-unset} ${PKGDIR-unset}"' > "$PKGDIR/usr/share/envcheck/seen"
+EOF
+build r/envcheck
+tar -xOf "$(ls "$T"/repo/envcheck-1-1-*.yon)" --use-compress-program="$COMP -d" usr/share/envcheck/seen 2>/dev/null | grep -qx 'unset unset' \
+  && ok "SRCDIR and PKGDIR are not exported to the recipe's programs"
+rm -f "$T"/repo/envcheck-*
+
 "${Y[@]}" verify >/dev/null && ok "final verify"
 # "cond && ok msg" silently skips a failed check under set -e: make sure
 # every check written in this file actually ran and passed.

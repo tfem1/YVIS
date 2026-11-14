@@ -156,7 +156,12 @@ fn run_script(
         .unwrap_or(2);
     let st = Command::new("bash")
         .arg("-c")
-        .arg(format!("set -eo pipefail\n{script}"))
+        // The variables are the recipe's, not its programs': exported, a
+        // name like SRCDIR reaches every configure script, and Vim's uses
+        // SRCDIR for its own source directory.
+        .arg(format!(
+            "set -eo pipefail\nexport -n SRCDIR PKGDIR PKGNAME PKGVER\n{script}"
+        ))
         .current_dir(cwd)
         .env("SRCDIR", srcdir)
         .env("PKGDIR", pkgdir)
