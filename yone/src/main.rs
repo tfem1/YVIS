@@ -30,21 +30,22 @@ yone — package manager of GraveyardOS
 usage: yone [options] <command> [arguments]
 
 commands:
+  update                      update everything: fresh indexes, then every package
   install <pkg|file.yon>...   install packages and their dependencies
   remove <pkg>...             remove packages (--cascade: and their dependents)
+  search <text>               search the repositories by name and description
+  list                        every package of the repositories ([installed] marked)
+  list --installed            the installed packages (--explicit, --deps)
+  info <pkg>                  show package details
   autoremove                  remove dependencies nothing needs anymore
-  update                      download and verify repository indexes
-  upgrade                     upgrade every installed package
   check-updates               list available upgrades without root or changes
                               (exit 0: some, 2: none; --offline: cached indexes)
-  search <text>               search the repositories
-  info <pkg>                  show package details
-  list                        list installed packages (--explicit, --deps)
   verify [pkg...]             check installed files against the database
   owns <path>...              which package owns a file or directory
   files <pkg>...              list the files of installed packages
   clean                       remove cached packages not installed (--all: everything)
   recover                     roll back an interrupted transaction
+  refresh                     only download and verify the indexes (for scripts)
   build <dir>                 build a package from <dir>/YONEBUILD
   repo-index <dir> --name N   generate a repository index
   keygen <prefix>             create an ed25519 signing key pair
@@ -92,7 +93,8 @@ fn run() -> Result<i32> {
         None::<String>,
         None::<String>,
     );
-    let (mut all, mut explicit_only, mut deps_only) = (false, false, false);
+    let (mut all, mut explicit_only, mut deps_only, mut installed_only) =
+        (false, false, false, false);
     let mut it = args.into_iter();
     while let Some(a) = it.next() {
         let mut val = |flag: &str| it.next().ok_or_else(|| err!("{flag} needs a value"));
@@ -118,6 +120,7 @@ fn run() -> Result<i32> {
             "--all" => all = true,
             "--explicit" => explicit_only = true,
             "--deps" => deps_only = true,
+            "--installed" => installed_only = true,
             "--out" => out = Some(PathBuf::from(val("--out")?)),
             "--sign" => key = Some(PathBuf::from(val("--sign")?)),
             "--name" => name = Some(val("--name")?),
@@ -155,17 +158,27 @@ fn run() -> Result<i32> {
             transaction::remove(&cfg()?, &ui, args, &opts)?;
         }
         "autoremove" => transaction::autoremove(&cfg()?, &ui)?,
-        "update" => {
+        // Like Arch's pacman -Syu, in one word: fresh indexes, then every
+        // installed package brought up to date. ("upgrade" is the old name.)
+        "update" | "upgrade" | "up" => {
+            let c = cfg()?;
+            if !opts.offline {
+                let _lock = transaction::Lock::acquire(&c)?;
+                sync::update(&c, &ui)?;
+            }
+            transaction::upgrade(&c, &ui, &opts)?;
+        }
+        // Only the indexes (pacman -Sy): for scripts and image building.
+        "refresh" => {
             let c = cfg()?;
             if opts.offline {
                 bail!(
-                    "'update' needs the network (or file:// mirrors) and cannot run with --offline"
+                    "'refresh' needs the network (or file:// mirrors) and cannot run with --offline"
                 );
             }
             let _lock = transaction::Lock::acquire(&c)?;
             sync::update(&c, &ui)?;
         }
-        "upgrade" => transaction::upgrade(&cfg()?, &ui, &opts)?,
         "check-updates" | "cu" => {
             let list = sync::check_updates(&cfg()?, &ui, opts.offline)?;
             for l in &list {
@@ -254,11 +267,33 @@ fn run() -> Result<i32> {
         }
         "list" | "ls" => {
             let c = cfg()?;
-            for i in LocalDb::open(&c.dbpath).list()? {
-                if (explicit_only && !i.explicit) || (deps_only && i.explicit) {
-                    continue;
+            let installed = LocalDb::open(&c.dbpath).list()?;
+            if installed_only || explicit_only || deps_only {
+                for i in installed {
+                    if (explicit_only && !i.explicit) || (deps_only && i.explicit) {
+                        continue;
+                    }
+                    println!("{} {}", i.info.name, ui.accent(&i.info.version));
                 }
-                println!("{} {}", i.info.name, ui.accent(&i.info.version));
+            } else {
+                // every package the repositories offer (pacman -Sl), by name
+                let s = sync::SyncDb::load(&c, &ui)?;
+                let mut entries: Vec<_> = s.entries.iter().collect();
+                entries.sort_by(|a, b| a.info.name.cmp(&b.info.name).then(a.repo.cmp(&b.repo)));
+                for e in entries {
+                    let mark = match installed.iter().find(|i| i.info.name == e.info.name) {
+                        Some(i) if i.info.version == e.info.version => ui.green(" [installed]"),
+                        Some(i) => ui.yellow(&format!(" [installed: {}]", i.info.version)),
+                        None => String::new(),
+                    };
+                    println!(
+                        "{}/{} {}{}",
+                        ui.dim(&e.repo),
+                        e.info.name,
+                        ui.accent(&e.info.version),
+                        mark
+                    );
+                }
             }
         }
         "owns" => {
@@ -325,8 +360,8 @@ fn run() -> Result<i32> {
             let dir = PathBuf::from(&args[0]);
             let c = cfg()?;
             let outdir = out.clone().unwrap_or_else(|| dir.clone());
-            let packager =
-                std::env::var("YONE_PACKAGER").unwrap_or_else(|_| "GraveyardOS build system".into());
+            let packager = std::env::var("YONE_PACKAGER")
+                .unwrap_or_else(|_| "GraveyardOS build system".into());
             let bo = build::BuildOpts {
                 outdir: &outdir,
                 compression: compress.as_deref().unwrap_or(&c.compression),

@@ -34,15 +34,16 @@ R=$T/root; mkdir -p "$R/etc/yone/keys"; cp keys/k.pub.pem "$R/etc/yone/keys/"
 printf '[options]\nsiglevel = required\n\n[core]\nserver = file://%s/repo\n' "$T" > "$R/etc/yone/yone.conf"
 Yr=("$Y" --root "$R" --noconfirm --color never)
 last=$(printf 'pkg%05d' $((N - 1)))
-label="update"; t "${Yr[@]}" update
+label="refresh (indexes)"; t "${Yr[@]}" refresh
 label="search"; t "${Yr[@]}" search "package 59"
 label="install $last and its dependencies"; t "${Yr[@]}" install "$last"
-echo "   $("${Yr[@]}" list | wc -l) packages installed"
+echo "   $("${Yr[@]}" list --installed | wc -l) packages installed"
 mapfile -t all < <(ls r)
 label="install the rest"; t "${Yr[@]}" install "${all[@]}"
-label="list"; t "${Yr[@]}" list
+label="list (every package)"; t "${Yr[@]}" list
+label="list --installed"; t "${Yr[@]}" list --installed
 label="verify"; t "${Yr[@]}" verify
-label="upgrade (nothing to do)"; t "${Yr[@]}" upgrade
+label="update (nothing to do)"; t "${Yr[@]}" update
 k=$(( N < 3000 ? N / 3 : 1000 ))
 label="remove $k"; t "${Yr[@]}" remove "${all[@]: -k}"
-echo "   $("${Yr[@]}" list | wc -l) packages installed"
+echo "   $("${Yr[@]}" list --installed | wc -l) packages installed"

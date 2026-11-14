@@ -33,6 +33,24 @@
   header { display: flex; align-items: center; gap: 12px; }
   header img { width: 52px; height: 52px; image-rendering: pixelated; }
   header h1 { font-size: 28px; letter-spacing: 0.02em; margin: 0; font-weight: 700; }
+  .author {
+    margin-left: auto; border: 0;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    font-size: 12.5px; color: var(--muted);
+  }
+  .author img {
+    width: 64px; height: 64px; border-radius: 50%; object-fit: cover;
+    border: 1px solid var(--line); filter: grayscale(1);
+  }
+  .author:hover span { color: var(--fg); }
+  .author:hover img { border-color: var(--fg); }
+  .cmds { width: 100%; border-collapse: collapse; font-size: 15px; }
+  .cmds td { padding: 9px 0; border-top: 1px solid var(--line); vertical-align: top; }
+  .cmds tr:last-child td { border-bottom: 1px solid var(--line); }
+  .cmds td:first-child { width: 42%; padding-right: 16px; white-space: nowrap; }
+  .cmds td:last-child { color: var(--muted); }
+  .cmds code { font: 14px ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace; color: var(--fg); }
+  .cmds i { color: var(--muted); }
   .lead { font-size: 21px; line-height: 1.45; margin: 40px 0 8px; }
   .sub { color: var(--muted); margin: 0; }
   h2 {
@@ -74,6 +92,10 @@
     .lead { font-size: 19px; }
     li { flex-direction: column; gap: 0; }
     li b { min-width: 0; }
+    .cmds td { display: block; width: auto !important; border: 0; padding: 0; }
+    .cmds tr { display: block; padding: 9px 0; border-top: 1px solid var(--line); }
+    .author img { width: 48px; height: 48px; }
+    .author span { display: none; }
   }
 </style>
 </head>
@@ -82,6 +104,10 @@
   <header>
     <img src="graveyard-icon.svg" alt="">
     <h1>GraveyardOS</h1>
+    <a class="author" href="https://frail.lol/tfem" title="tfem, who makes GraveyardOS">
+      <img src="tfem.jpg" alt="tfem" width="64" height="64">
+      <span>frail.lol/tfem</span>
+    </a>
   </header>
 
   <p class="lead">A Linux distribution built from source, with its own package manager.</p>
@@ -92,23 +118,30 @@
   <h2>Works today</h2>
   <ul>
     <li><b>Base system</b><span>Every package of the book built from source in CI, then checked.</span></li>
-    <li><b>Live ISO</b><span>Boots on BIOS and UEFI, from a disc or a USB stick; from a Ventoy stick on BIOS (UEFI: being fixed).</span></li>
+    <li><b>Live ISO</b><span>Boots on BIOS and UEFI, from a disc or a USB stick; from a Ventoy stick on BIOS (UEFI: fixed, in the next ISO).</span></li>
     <li><b>Yone</b><span>Signed packages, atomic installs, file verification. Written in Rust.</span></li>
   </ul>
 
   <h2>Coming</h2>
   <ul>
-    <li><b>Desktops</b><span>KDE Plasma, minimal. Hyprland, with its author's dotfiles.</span></li>
+    <li><b>Desktops</b><span>KDE Plasma on Wayland, the standard desktop. Hyprland, with its author's dotfiles.</span></li>
     <li><b>Apps</b><span>Flatpak with Flathub. Firefox, kitty.</span></li>
     <li><b>Hardware</b><span>NVIDIA open modules. Firmware is the only non-free part.</span></li>
     <li><b>Installer</b><span>ext4, optional encryption, zram.</span></li>
   </ul>
 
-  <h2>Yone</h2>
-<pre><span class="p">$ </span>sudo yone update      <span class="c"># signed repository indexes</span>
-<span class="p">$ </span>sudo yone install kitty
-<span class="p">$ </span>sudo yone upgrade
-<span class="p">$ </span>sudo yone verify      <span class="c"># every installed file, checked</span></pre>
+  <h2>Yone, in short</h2>
+  <table class="cmds">
+    <tr><td><code>sudo yone update</code></td><td>update everything: fresh signed indexes, then every package</td></tr>
+    <tr><td><code>sudo yone install <i>pkg</i></code></td><td>install a package and what it needs</td></tr>
+    <tr><td><code>sudo yone remove <i>pkg</i></code></td><td>remove a package</td></tr>
+    <tr><td><code>yone search <i>word</i></code></td><td>search names and descriptions</td></tr>
+    <tr><td><code>yone list</code></td><td>every package the repositories offer, installed ones marked</td></tr>
+    <tr><td><code>yone list --installed</code></td><td>what is installed</td></tr>
+    <tr><td><code>yone info <i>pkg</i></code></td><td>details of a package</td></tr>
+    <tr><td><code>sudo yone autoremove</code></td><td>remove dependencies nothing needs anymore</td></tr>
+    <tr><td><code>sudo yone verify</code></td><td>check every installed file against its checksum</td></tr>
+  </table>
 
   <h2>Download</h2>
   <div class="download">

@@ -19,7 +19,7 @@
     "kernel",
     "uptime",
     // Fastfetch ne connaît pas Yone : on compte les paquets via la CLI
-    { "type": "command", "key": "Packages", "text": "echo \"$(yone list 2>/dev/null | wc -l) (yone)\"" },
+    { "type": "command", "key": "Packages", "text": "echo \"$(yone list --installed 2>/dev/null | wc -l) (yone)\"" },
     "shell",
     "de",
     "wm",

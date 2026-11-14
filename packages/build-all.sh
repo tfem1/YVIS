@@ -127,7 +127,7 @@ if [ ${#failed[@]} -gt 0 ]; then
   mapfile -t targets < <(cd "$work/repo" && ls ./*.yon | sed 's|^\./||; s/-[^-]*-[^-]*-x86_64\.yon$//' | grep -vx base)
 fi
 rc=0
-chroot "$root" /usr/local/bin/yone --root /target --noconfirm --color never update > "$work/logs/install.log" 2>&1 \
+chroot "$root" /usr/local/bin/yone --root /target --noconfirm --color never refresh > "$work/logs/install.log" 2>&1 \
   && chroot "$root" /usr/local/bin/yone --root /target --noconfirm --color never install "${targets[@]}" \
     >> "$work/logs/install.log" 2>&1 || rc=$?
 tail -n 15 "$work/logs/install.log"

@@ -83,7 +83,7 @@ boot() { # name: bios-disc | bios-usb | uefi-disc | uefi-usb | bios-ventoy | uef
   fi
   if [ "$medium" = ventoy ]; then
     [ -s "${GRAVEYARD_VENTOY_IMG:-}" ] || { echo "$name: GRAVEYARD_VENTOY_IMG is not set (iso/ventoy-stick.sh)" >&2; exit 1; }
-    found=${GRAVEYARD_VENTOY_FOUND:-ventoy}
+    found=${GRAVEYARD_VENTOY_FOUND:-label|ventoy}  # Ventoy's hooks map the ISO as a disk with its label
     drive=(-device qemu-xhci -drive "if=none,id=stick,file=$GRAVEYARD_VENTOY_IMG,format=raw"
       -device "usb-storage,drive=stick,bootindex=1")
   elif [ "$medium" = usb ]; then

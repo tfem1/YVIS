@@ -127,7 +127,7 @@ function software() {
     desktop: "Everyday programs: files, text editor, image viewer, archives.",
     gaming: "Desktop, plus Steam, Proton, GameMode and MangoHud.",
   };
-  const blurb = { kde: "Full desktop, preselected. Familiar and complete.", hyprland: "Tiling Wayland compositor, with the author's dotfiles." };
+  const blurb = { kde: "Plasma on Wayland, the full standard desktop. Preselected.", hyprland: "Tiling Wayland compositor, with the author's dotfiles." };
   $("desktops").replaceChildren(...Object.entries(F.desktops).map(([id, name]) => {
     const b = el("button", { class: "choice", role: "checkbox", "aria-checked": C.desktops.includes(id) },
       el("b", {}, name), el("span", {}, blurb[id] || ""),

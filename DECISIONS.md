@@ -13,7 +13,7 @@ changing one is a decision of the same kind, recorded here.
 | CPU baseline | Any 64-bit PC (plain x86-64) |
 | Non-free software | Firmware only by default; codecs and NVIDIA are the user's choice |
 | Default desktop | KDE Plasma preselected, Hyprland in the list |
-| KDE | Minimal: desktop, Dolphin, Kate, settings |
+| KDE | Plasma on Wayland, the standard desktop (Arch's plasma group), not a minimal one (changed 2026-11-14) |
 | Hyprland | The owner's dotfiles (tfem1/dotfiles) as they are, for every user |
 | Terminal | kitty on both desktops |
 | Browser | Firefox as a Flatpak |

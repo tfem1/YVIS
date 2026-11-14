@@ -20,14 +20,14 @@ manager, **Yone**, written in Rust.
 ## Yone at a glance
 
 ```sh
-sudo yone update            # fetch + verify signed repository indexes
+sudo yone update            # update everything: fresh signed indexes, then every package
 sudo yone install firefox   # resolve deps, download in parallel, install atomically
-sudo yone upgrade
 sudo yone remove firefox
-sudo yone autoremove        # orphaned dependencies
-yone search browser
+yone search browser         # names and descriptions
+yone list                   # every package of the repositories, [installed] marked
+yone list --installed       # what is installed (--explicit, --deps)
 yone info firefox
-yone list --explicit
+sudo yone autoremove        # orphaned dependencies
 sudo yone verify            # SHA-256 of every installed file vs the database
 sudo yone clean
 sudo yone recover           # roll back a transaction interrupted by a crash

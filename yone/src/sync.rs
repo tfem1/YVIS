@@ -1,4 +1,5 @@
-//! Repository indexes (`/var/lib/yone/sync/<repo>.index`) and `yone update`.
+//! Repository indexes (`/var/lib/yone/sync/<repo>.index`), `yone refresh` (and
+//! the first half of `yone update`).
 
 use crate::config::{Config, SigLevel};
 use crate::db::LocalDb;
@@ -53,7 +54,7 @@ impl SyncDb {
     }
 }
 
-/// `yone update`: fetch every repository index and its signature, verify,
+/// `yone refresh` (and `yone update` before it upgrades): fetch every repository index and its signature, verify,
 /// then atomically replace the local copy. A bad repository never leaves a
 /// half-written index behind.
 pub fn update(cfg: &Config, ui: &Ui) -> Result<()> {
@@ -181,7 +182,7 @@ fn private_dir(tag: &str) -> Result<TempDir> {
     Ok(TempDir(p))
 }
 
-/// `yone check-updates`: list the packages `yone upgrade` would update, as
+/// `yone check-updates`: list the packages `yone update` would upgrade, as
 /// `name old -> new` lines, like Arch's checkupdates. Unless `offline`, the
 /// indexes are refreshed into a private copy of the sync database: it needs
 /// no root, takes no lock and never changes the system's indexes, so a

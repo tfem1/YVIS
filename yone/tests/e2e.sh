@@ -111,7 +111,7 @@ server = file://$T/repo
 EOF
 
 echo "== sync, search, install"
-"${Y[@]}" update >/dev/null && ok "update verifies the signed index"
+"${Y[@]}" refresh >/dev/null && ok "refresh verifies the signed index"
 "${Y[@]}" search foo | grep -q "core/foo" && ok "search"
 "${Y[@]}" install foo >/dev/null
 [ "$("$ROOT/usr/bin/foo")" = "foo 1.0" ] && ok "install foo (runs)"
@@ -151,7 +151,7 @@ idx=$(sha "$ROOT/var/lib/yone/sync/core.index")
 [ "$("${Y[@]}" check-updates 2>/dev/null)" = "foo 1.0-1 -> 1.1-1" ] && ok "check-updates lists foo 1.0-1 -> 1.1-1"
 [ "$idx" = "$(sha "$ROOT/var/lib/yone/sync/core.index")" ] && ok "  ...without touching the system's indexes"
 [ "$("${Y[@]}" check-updates --offline 2>/dev/null || true)" = "" ] && ok "check-updates --offline only reads the cached indexes"
-"${Y[@]}" update >/dev/null
+"${Y[@]}" refresh >/dev/null
 fails env YONE_TEST_FAIL_AFTER=3 "${Y[@]}" upgrade
 [ "$("$ROOT/usr/bin/foo")" = "foo 1.0" ] && [ -e "$ROOT/usr/share/foo/legacy.txt" ] && ok "failed upgrade rolled back to foo 1.0"
 "${Y[@]}" upgrade >/dev/null 2>"$T/up.log"
@@ -165,16 +165,16 @@ rc=0; "${Y[@]}" check-updates >/dev/null 2>&1 || rc=$?
 rm "$ROOT/etc/foo.conf.yonenew"
 foo_recipe 1.2 'setting=1\nnew=2\n'
 build r/foo; rm repo/foo-1.1-1-x86_64.yon*; publish
-"${Y[@]}" update >/dev/null && "${Y[@]}" upgrade >/dev/null 2>&1
+"${Y[@]}" refresh >/dev/null && "${Y[@]}" upgrade >/dev/null 2>&1
 grep -q "admin" "$ROOT/etc/foo.conf" && grep -q "new=2" "$ROOT/etc/foo.conf.yonenew" \
   && ok "admin changes survive a second upgrade" || die "second upgrade overwrote the modified config"
 sed -i 's/^\[options\]$/[options]\nhold = foo/' "$ROOT/etc/yone/yone.conf"
 foo_recipe 1.3 'setting=1\nnew=3\n'
-build r/foo; publish; "${Y[@]}" update >/dev/null
+build r/foo; publish; "${Y[@]}" refresh >/dev/null
 grep -q "foo: held (1.2-1 -> 1.3-1 available" <<<"$("${Y[@]}" upgrade 2>&1)" && [ "$("$ROOT/usr/bin/foo")" = "foo 1.2" ] \
   && ok "a held package is not upgraded"
 rc=0; "${Y[@]}" check-updates >/dev/null 2>&1 || rc=$?; [ "$rc" = 2 ] && ok "  ...nor listed by check-updates"
-sed -i '/^hold = foo$/d' "$ROOT/etc/yone/yone.conf"; rm -f repo/foo-1.3-1-*; publish; "${Y[@]}" update >/dev/null
+sed -i '/^hold = foo$/d' "$ROOT/etc/yone/yone.conf"; rm -f repo/foo-1.3-1-*; publish; "${Y[@]}" refresh >/dev/null
 
 echo "== removal"
 fails "${Y[@]}" remove libfoo; grep -q "foo requires" last.log && ok "removing a needed dependency is refused"
@@ -182,21 +182,21 @@ fails "${Y[@]}" remove libfoo; grep -q "foo requires" last.log && ok "removing a
 [ ! -e "$ROOT/usr/bin/foo" ] && [ ! -d "$ROOT/usr/share/foo" ] && ok "remove foo (files and empty dirs gone)"
 [ -e "$ROOT/etc/foo.conf.yonesave" ] && ok "modified config saved as .yonesave"
 "${Y[@]}" autoremove >/dev/null
-[ -z "$("${Y[@]}" list | grep libfoo || true)" ] && [ ! -e "$ROOT/usr/lib/libfoo.so.1" ] && ok "autoremove drops the orphaned libfoo"
+[ -z "$("${Y[@]}" list --installed | grep libfoo || true)" ] && [ ! -e "$ROOT/usr/lib/libfoo.so.1" ] && ok "autoremove drops the orphaned libfoo"
 
 echo "== supply-chain defences"
 cp repo/core.index repo/core.index.bak
 sed -i 's/desc = The foo tool/desc = Evil/' repo/core.index
-fails "${Y[@]}" update; grep -q "invalid signature" last.log && ok "tampered index rejected"
+fails "${Y[@]}" refresh; grep -q "invalid signature" last.log && ok "tampered index rejected"
 grep -q "The foo tool" "$ROOT/var/lib/yone/sync/core.index" && ok "previous trusted index kept"
 cp repo/core.index.bak repo/core.index
 "$YONE" repo-index "$T/repo" --name core --sign keys/rogue.key --color never >/dev/null
-fails "${Y[@]}" update && ok "index signed by an untrusted key rejected"
+fails "${Y[@]}" refresh && ok "index signed by an untrusted key rejected"
 SOURCE_DATE_EPOCH=1 publish; cp repo/core.index old.index; cp repo/core.index.sig old.index.sig
-publish; "${Y[@]}" update >/dev/null
+publish; "${Y[@]}" refresh >/dev/null
 cp old.index repo/core.index; cp old.index.sig repo/core.index.sig
-fails "${Y[@]}" update; grep -q "older than the one already" last.log && ok "replayed older signed index refused"
-publish; "${Y[@]}" update >/dev/null
+fails "${Y[@]}" refresh; grep -q "older than the one already" last.log && ok "replayed older signed index refused"
+publish; "${Y[@]}" refresh >/dev/null
 
 "${Y[@]}" clean --all >/dev/null
 cp repo/multi-1.0-1-x86_64.yon multi.bak
@@ -232,7 +232,7 @@ pkg("traversal", [("../../escaped", "file", b"pwned")])
 pkg("symescape", [("usr/escape", "sym", f"{T}/outside"), ("usr/escape/pwned", "file", b"pwned")])
 PY
 for f in evil/*.yon; do cp "$f" repo/; done
-publish; "${Y[@]}" update >/dev/null
+publish; "${Y[@]}" refresh >/dev/null
 fails "${Y[@]}" install traversal; grep -q "unsafe path" last.log && ok "path traversal (../) refused"
 fails "${Y[@]}" install symescape; grep -q "would be redirected" last.log && grep -q "rolling back" last.log \
   && ok "a package redirecting its own files through a symlink is refused and rolled back"
@@ -257,7 +257,7 @@ version = 1.0
 install -Dm755 /bin/true "$PKGDIR/usr/bin/capped"
 setcap cap_net_raw+ep "$PKGDIR/usr/bin/capped"
 EOF
-build r/capped; publish; "${Y[@]}" update >/dev/null; "${Y[@]}" install capped >/dev/null
+build r/capped; publish; "${Y[@]}" refresh >/dev/null; "${Y[@]}" install capped >/dev/null
 getcap "$ROOT/usr/bin/capped" | grep -q cap_net_raw && ok "setcap capabilities survive build and install"
 "${Y[@]}" remove capped >/dev/null
 else
@@ -278,7 +278,7 @@ version = 1.0
 @package
 mkdir -p "$PKGDIR/lib"; echo B > "$PKGDIR/lib/libalias.so"; echo B > "$PKGDIR/lib/libonly-b.so"
 EOF
-build r/aliasa; build r/aliasb; publish; "${Y[@]}" update >/dev/null
+build r/aliasa; build r/aliasb; publish; "${Y[@]}" refresh >/dev/null
 "${Y[@]}" install aliasa >/dev/null
 fails "${Y[@]}" install --overwrite aliasb
 grep -q "usr/lib/libalias.so: exists in filesystem (owned by aliasa)" last.log \
@@ -295,15 +295,15 @@ leftovers() { find "$ROOT" -name '*.yone-old' -o -name '*.yone-new' | grep -q .;
 fails env YONE_TEST_CRASH=staged "${Y[@]}" install multi
 fails "${Y[@]}" install --reinstall stray; grep -q "yone recover" last.log && ok "a crashed transaction blocks new ones until recovered"
 grep -q "rolled back" <<<"$("${Y[@]}" recover 2>&1)" && ok "crash before the commit point: recover rolls back"
-[ -z "$("${Y[@]}" list | grep '^multi' || true)" ] && [ ! -e "$ROOT/usr/share/multi" ] && ! leftovers \
+[ -z "$("${Y[@]}" list --installed | grep '^multi' || true)" ] && [ ! -e "$ROOT/usr/share/multi" ] && ! leftovers \
   && "${Y[@]}" verify >/dev/null && ok "  ...nothing of multi left, database and files agree"
 fails env YONE_TEST_CRASH=committed "${Y[@]}" install multi
 grep -q "completed" <<<"$("${Y[@]}" recover 2>&1)" && ok "crash after the commit point: recover rolls forward"
-"${Y[@]}" list | grep -q '^multi' && [ -e "$ROOT/usr/share/multi/f40" ] && ! leftovers \
+"${Y[@]}" list --installed | grep -q '^multi' && [ -e "$ROOT/usr/share/multi/f40" ] && ! leftovers \
   && "${Y[@]}" verify >/dev/null && ok "  ...multi fully installed, database and files agree"
 fails env YONE_TEST_CRASH=committed "${Y[@]}" remove multi
 "${Y[@]}" recover >/dev/null
-[ -z "$("${Y[@]}" list | grep '^multi' || true)" ] && [ ! -e "$ROOT/usr/share/multi" ] && ! leftovers \
+[ -z "$("${Y[@]}" list --installed | grep '^multi' || true)" ] && [ ! -e "$ROOT/usr/share/multi" ] && ! leftovers \
   && ok "crash after committing a removal: recover completes it"
 grep -q "no interrupted" <<<"$("${Y[@]}" recover 2>&1)" && ok "recover on a clean system is a no-op"
 
@@ -318,14 +318,14 @@ true
 EOF
 out=$("$YONE" build r/meta --out "$T/repo" --sign "$KEY" --compress "$COMP" --color never 2>&1)
 grep -q "meta package" <<<"$out" && ok "an empty package builds as a meta package"
-publish; "${Y[@]}" update >/dev/null
-"${Y[@]}" install meta >/dev/null && "${Y[@]}" list | grep -q '^multi' && [ ! -s "$ROOT/var/lib/yone/local/meta/files" ] \
+publish; "${Y[@]}" refresh >/dev/null
+"${Y[@]}" install meta >/dev/null && "${Y[@]}" list --installed | grep -q '^multi' && [ ! -s "$ROOT/var/lib/yone/local/meta/files" ] \
   && ok "installing it pulls its dependencies, it owns no file"
 [ "$("${Y[@]}" owns /usr/share/multi/f7 2>/dev/null)" = "/usr/share/multi/f7 is owned by multi 1.0-1" ] && ok "owns: file"
 "${Y[@]}" owns usr/share/multi 2>/dev/null | grep -q "owned by multi" && ok "owns: directory"
 rc=0; "${Y[@]}" owns /etc/nothing >/dev/null 2>&1 || rc=$?; [ "$rc" = 1 ] && ok "owns: exit 1 for an unowned path"
 [ "$("${Y[@]}" files multi | grep -c '^multi /usr/share/multi/f')" = 40 ] && ok "files lists a package's files"
-"${Y[@]}" remove meta >/dev/null && "${Y[@]}" autoremove >/dev/null && [ -z "$("${Y[@]}" list | grep '^multi' || true)" ] \
+"${Y[@]}" remove meta >/dev/null && "${Y[@]}" autoremove >/dev/null && [ -z "$("${Y[@]}" list --installed | grep '^multi' || true)" ] \
   && ok "removing the meta package lets autoremove take its dependencies"
 grep -q "\] installed meta (1.0-1)" "$ROOT/var/log/yone.log" && grep -q "\] removed multi (1.0-1)" "$ROOT/var/log/yone.log" \
   && grep -qE '^\[20[0-9]{2}-[0-9]{2}-[0-9]{2} [0-9:]{8}\] ' "$ROOT/var/log/yone.log" && ok "transactions are logged in /var/log/yone.log"
@@ -366,7 +366,7 @@ install -Dm644 -o nobody -g disk /dev/null "$PKGDIR/var/lib/owned/data"
 install -d -m 750 -g tty "$PKGDIR/var/lib/ttydir"
 install -Dm755 /dev/null "$PKGDIR/usr/bin/plain"
 EOF2
-  build r/owned; publish; "${Y[@]}" update >/dev/null
+  build r/owned; publish; "${Y[@]}" refresh >/dev/null
   pkg=$(ls "$T"/repo/owned-1.0-1-*.yon)
   listing=$(tar -tvf "$pkg")
   grep -Eq '^-rwxr-sr-x root/tty .* usr/bin/wall$' <<<"$listing" && grep -Eq '^-rwxr-xr-x root/root .* usr/bin/plain$' <<<"$listing" \
@@ -480,7 +480,7 @@ version = 1.0
 @package
 install -Dm644 /dev/null "$PKGDIR/usr/share/stamp/b"
 EOF
-  for p in shell stamper stamp2; do build r/$p; done; publish; "${Y[@]}" update >/dev/null
+  for p in shell stamper stamp2; do build r/$p; done; publish; "${Y[@]}" refresh >/dev/null
   "${Y[@]}" install shell stamper > "$T/hook.log" 2>&1
   [ "$(tr -d ' ' < "$ROOT/var/stamps")" = 1 ] && grep -q "hook: Counting stamps" "$T/hook.log" \
     && ok "a hook shipped by a package runs when its paths change, inside the root"
@@ -518,6 +518,26 @@ build r/envcheck
 tar -xOf "$(ls "$T"/repo/envcheck-1-1-*.yon)" --use-compress-program="$COMP -d" usr/share/envcheck/seen 2>/dev/null | grep -qx 'unset unset' \
   && ok "SRCDIR and PKGDIR are not exported to the recipe's programs"
 rm -f "$T"/repo/envcheck-*
+
+echo "== list and update, the everyday commands"
+recipe r/daily <<'EOF'
+name = daily
+version = 1
+desc = Package for list and update
+@package
+mkdir -p "$PKGDIR/usr/share/daily" && echo 1 > "$PKGDIR/usr/share/daily/v"
+EOF
+build r/daily; publish; "${Y[@]}" refresh >/dev/null
+"${Y[@]}" list > list.out
+grep -qE '^core/daily 1-1$' list.out && ok "list shows the repositories' packages, installed or not"
+"${Y[@]}" install daily >/dev/null
+"${Y[@]}" list | grep -qE '^core/daily 1-1 \[installed\]$' && ok "list marks what is installed"
+"${Y[@]}" list --installed | grep -qE '^daily 1-1$' && ok "list --installed lists only the installed packages"
+sed -i 's/^version = 1$/version = 2/; s/echo 1/echo 2/' r/daily/YONEBUILD
+rm -f "$T"/repo/daily-1-1-*; build r/daily; publish
+"${Y[@]}" update >/dev/null && [ "$(cat "$ROOT/usr/share/daily/v")" = 2 ] \
+  && "${Y[@]}" list --installed | grep -qE '^daily 2-1$' && ok "update fetches the indexes and upgrades in one command"
+"${Y[@]}" remove daily >/dev/null; rm -f "$T"/repo/daily-*; publish; "${Y[@]}" refresh >/dev/null
 
 "${Y[@]}" verify >/dev/null && ok "final verify"
 # "cond && ok msg" silently skips a failed check under set -e: make sure

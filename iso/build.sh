@@ -9,10 +9,13 @@
 # images are made by its own GRUB, run in a chroot. The host only provides
 # tools: mksquashfs, xorriso, mtools and dosfstools.
 #
-# The ISO is marked "Ventoy compatible" (a /ventoy.dat file and the words
-# VENTOY COMPATIBLE in the application id): Ventoy then boots it as it is,
-# without patching its initramfs, and the initramfs finds the ISO file on
-# the stick itself (system/initramfs/init).
+# Ventoy: the ISO is not marked "Ventoy compatible". With the mark, Ventoy's
+# UEFI path chainloads the ISO's own boot loader, which does not come up,
+# then falls back to its GRUB 2.04, which cannot load the kernel (runs
+# 43591297064 and 43594086846). Without it, Ventoy adds its hooks to the
+# initramfs and maps the ISO as a disk with its label, which the init finds
+# like a disc (UEFI proven by run 43594086846; BIOS: the next ISO run). The initramfs still reads Ventoy's
+# boot record when it has one (system/initramfs/init).
 #
 #   GRAVEYARD_ISO_CMDLINE   extra kernel parameters for the live entries
 #                      (e.g. "console=ttyS0,115200" for a serial console)
@@ -78,18 +81,13 @@ mkfs.vfat -n GRAVE_EFI "$esp" > /dev/null
 mmd -i "$esp" ::/EFI ::/EFI/BOOT ::/boot ::/boot/grub
 mcopy -i "$esp" "$stage/BOOTX64.EFI" ::/EFI/BOOT/BOOTX64.EFI
 mcopy -i "$esp" "$stage/esp.cfg" ::/boot/grub/grub.cfg
-cat > "$tree/ventoy.dat" << DAT
-GraveyardOS live medium: Ventoy compatible. Ventoy boots it without hooks; the
-initramfs reads Ventoy's boot record to find this ISO file on the stick.
-https://www.ventoy.net/en/compatible.html
-DAT
 sed -e "s/@LABEL@/$label/g" -e "s/@VERSION@/$version/g" -e "s|@CMDLINE@|${GRAVEYARD_ISO_CMDLINE:-}|g" \
   -e 's/ *$//' "$HERE/grub.cfg" > "$tree/boot/grub/grub.cfg"
 
 log "ISO (bootable from disc or USB stick, BIOS or UEFI)"
 # The options grub-mkrescue passes to xorriso.
 xorriso -as mkisofs -graft-points -r -V "$label" \
-  -appid "GraveyardOS $version live (VENTOY COMPATIBLE)" -publisher "GraveyardOS" \
+  -appid "GraveyardOS $version live" -publisher "GraveyardOS" \
   -b boot/grub/i386-pc/eltorito.img -no-emul-boot -boot-load-size 4 -boot-info-table --grub2-boot-info \
   --grub2-mbr "$grub/i386-pc/boot_hybrid.img" \
   --efi-boot boot/grub/efi.img -efi-boot-part --efi-boot-image \
