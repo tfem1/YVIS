@@ -1,0 +1,210 @@
+#!/usr/bin/python3
+"""The YVIS installer: a local web page that drives yvis_install.
+
+    yvis-installer [--listen ADDR] [--port N] [--demo] [--dry-run]
+
+It serves the page on http://127.0.0.1:8475/ (the desktop opens it full
+screen). --listen 0.0.0.0 lets another computer on the network drive the
+installation: the address to open, with its one-time key, is printed here.
+
+Every API request must carry the key, which only the page itself receives:
+another web site open in the same browser cannot start an installation.
+--demo invents a machine (two disks, an NVIDIA GPU) and --dry-run only
+shows the commands: together they let the page be tried anywhere.
+"""
+import argparse
+import http.server
+import json
+import os
+import secrets
+import socket
+import sys
+import threading
+import urllib.parse
+
+HERE = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, HERE)
+import yvis_install as yi  # noqa: E402
+
+WEB = next(p for p in [os.path.join(HERE, "web"), "/usr/share/yvis/installer/web"] if os.path.isdir(p))
+TYPES = {".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript",
+         ".svg": "image/svg+xml", ".png": "image/png"}
+
+DEMO = {
+    "firmware": "uefi",
+    "disks": [
+        {"path": "/dev/nvme0n1", "size": 1000204886016, "model": "Samsung SSD 980 PRO 1TB",
+         "transport": "nvme", "removable": False, "live": False, "partitions": [
+             {"path": "/dev/nvme0n1p1", "size": 104857600, "fstype": "vfat", "label": None, "type": "EFI System"},
+             {"path": "/dev/nvme0n1p2", "size": 16777216, "fstype": None, "label": None, "type": "Microsoft reserved"},
+             {"path": "/dev/nvme0n1p3", "size": 499000000000, "fstype": "ntfs", "label": "Windows", "type": "Microsoft basic data"},
+             {"path": "/dev/nvme0n1p4", "size": 500000000000, "fstype": None, "label": None, "type": "Linux filesystem"}]},
+        {"path": "/dev/sda", "size": 32015679488, "model": "SanDisk Ultra", "transport": "usb",
+         "removable": True, "live": True, "partitions": [
+             {"path": "/dev/sda1", "size": 32014630912, "fstype": "exfat", "label": "Ventoy", "type": None}]},
+    ],
+    "gpu": {"nvidia": "open", "hybrid": "no"},
+    "source": "/run/yvis/system", "kernel": "7.1.8-yvis",
+    "locales": ["de_DE.UTF-8", "en_GB.UTF-8", "en_US.UTF-8", "es_ES.UTF-8", "fr_FR.UTF-8", "it_IT.UTF-8"],
+    "keymaps": ["de", "es", "fr", "fr-latin9", "it", "uk", "us"],
+    "timezones": ["America/New_York", "Europe/Berlin", "Europe/London", "Europe/Paris", "UTC"],
+    "can": {"encrypt": True, "efi": True, "sudo": True, "efibootmgr": False, "desktops": ["kde", "hyprland"]},
+}
+
+
+class Job:
+    """The one installation this process runs."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.state = "idle"   # idle, running, done, failed
+        self.steps = []
+        self.events = []
+
+    def log(self, event):
+        with self.lock:
+            self.events.append(event)
+            if "state" in event and "step" in event:
+                self.steps[event["step"]]["state"] = event["state"]
+
+    def start(self, steps, secret, dry_run):
+        with self.lock:
+            if self.state == "running" or self.state == "done":
+                return False
+            self.state, self.events = "running", []
+            self.steps = [{"title": t, "state": "waiting"} for t, _ in steps]
+
+        def work():
+            ok = yi.run(steps, secret, self.log, dry_run=dry_run)
+            with self.lock:
+                self.state = "done" if ok else "failed"
+        threading.Thread(target=work, daemon=True).start()
+        return True
+
+    def status(self, since):
+        with self.lock:
+            lines = [e["line"] for e in self.events[since:] if "line" in e]
+            return {"state": self.state, "steps": self.steps, "lines": lines, "next": len(self.events)}
+
+
+def make_handler(args, key, job):
+    def facts():
+        return DEMO if args.demo else yi.facts()
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        server_version = "yvis-installer"
+
+        def log_message(self, fmt, *a):
+            pass
+
+        def send(self, code, body, ctype="application/json"):
+            data = body if isinstance(body, bytes) else json.dumps(body).encode()
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Content-Security-Policy",
+                             "default-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors 'none'")
+            self.end_headers()
+            self.wfile.write(data)
+
+        def allowed(self):
+            # DNS rebinding: only our own names; and the key, for the API
+            host = (self.headers.get("Host") or "").rsplit(":", 1)[0].strip("[]")
+            if args.listen in ("127.0.0.1", "localhost") and host not in ("127.0.0.1", "localhost"):
+                return False
+            return True
+
+        def api_ok(self):
+            return self.allowed() and secrets.compare_digest(self.headers.get("X-YVIS-Key", ""), key)
+
+        def do_GET(self):
+            url = urllib.parse.urlparse(self.path)
+            if not self.allowed():
+                return self.send(403, {"error": "forbidden"})
+            if url.path.startswith("/api/"):
+                if not self.api_ok():
+                    return self.send(403, {"error": "missing key"})
+                if url.path == "/api/facts":
+                    f = facts()
+                    return self.send(200, dict(f, defaults=yi.DEFAULTS, desktops=yi.DESKTOPS,
+                                               profiles=yi.PROFILES, demo=args.demo, dry_run=args.dry_run))
+                if url.path == "/api/status":
+                    since = int(urllib.parse.parse_qs(url.query).get("since", ["0"])[0])
+                    return self.send(200, job.status(since))
+                return self.send(404, {"error": "not found"})
+            name = "index.html" if url.path in ("/", "") else url.path.lstrip("/")
+            path = os.path.realpath(os.path.join(WEB, name))
+            if not path.startswith(os.path.realpath(WEB) + os.sep) or not os.path.isfile(path):
+                return self.send(404, b"not found", "text/plain")
+            with open(path, "rb") as fh:
+                data = fh.read()
+            if name == "index.html":
+                # From another computer, the page itself needs the key printed
+                # on this one; on this computer, the page is enough.
+                remote = args.listen not in ("127.0.0.1", "localhost")
+                given = urllib.parse.parse_qs(url.query).get("key", [""])[0]
+                if remote and not secrets.compare_digest(given, key):
+                    return self.send(403, b"open the address shown on the installing computer, with its key",
+                                     "text/plain; charset=utf-8")
+                # the key reaches only this page (same origin)
+                data = data.replace(b"@YVIS_KEY@", key.encode())
+            self.send(200, data, TYPES.get(os.path.splitext(path)[1], "application/octet-stream"))
+
+        def do_POST(self):
+            if not self.api_ok():
+                return self.send(403, {"error": "missing key"})
+            length = int(self.headers.get("Content-Length") or 0)
+            if length > 65536:
+                return self.send(413, {"error": "too large"})
+            try:
+                body = json.loads(self.rfile.read(length) or b"{}")
+            except ValueError:
+                return self.send(400, {"error": "not JSON"})
+            choices, secret = body.get("choices") or {}, body.get("secrets") or {}
+            f = facts()
+            errors = yi.validate(choices, f, secret)
+            if self.path == "/api/check":
+                if errors:
+                    return self.send(200, {"errors": errors})
+                return self.send(200, {"errors": {}, "summary": yi.summary(choices, f),
+                                       "steps": [t for t, _ in yi.plan(choices, f)]})
+            if self.path == "/api/install":
+                if errors:
+                    return self.send(400, {"errors": errors})
+                if not body.get("confirm"):
+                    return self.send(400, {"error": "the summary was not confirmed"})
+                if not job.start(yi.plan(choices, f), secret, args.dry_run or args.demo):
+                    return self.send(409, {"error": "an installation already ran"})
+                return self.send(200, {"started": True})
+            return self.send(404, {"error": "not found"})
+
+    return Handler
+
+
+def main():
+    ap = argparse.ArgumentParser(description="The YVIS installer (a local web page).")
+    ap.add_argument("--listen", default="127.0.0.1")
+    ap.add_argument("--port", type=int, default=8475)
+    ap.add_argument("--demo", action="store_true", help="an invented machine; nothing is written")
+    ap.add_argument("--dry-run", action="store_true", help="show the commands instead of running them")
+    args = ap.parse_args()
+    if not (args.demo or args.dry_run) and os.geteuid() != 0:
+        sys.exit("yvis-installer: run as root (or try --demo)")
+    key = secrets.token_urlsafe(18)
+    server = http.server.ThreadingHTTPServer((args.listen, args.port), make_handler(args, key, Job()))
+    shown = args.listen if args.listen not in ("0.0.0.0", "") else socket.gethostname()
+    if args.listen in ("127.0.0.1", "localhost"):
+        print(f"YVIS installer: http://{shown}:{args.port}/", flush=True)
+    else:
+        print(f"YVIS installer: http://{shown}:{args.port}/?key={key}", flush=True)
+        print("  open this address from the other computer; the key changes at every start.", flush=True)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+
+
+if __name__ == "__main__":
+    main()

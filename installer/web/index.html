@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="yvis-key" content="@YVIS_KEY@">
+<title>Install YVIS</title>
+<link rel="icon" href="yvis-icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+<script src="app.js" defer></script>
+</head>
+<body>
+<div class="shell">
+  <aside class="rail">
+    <div class="brand"><img src="yvis-icon.svg" alt=""><span>YVIS</span></div>
+    <ol class="steps" id="steps">
+      <li data-step="welcome">Welcome</li>
+      <li data-step="region">Region</li>
+      <li data-step="disk">Disk</li>
+      <li data-step="software">Software</li>
+      <li data-step="account">Account</li>
+      <li data-step="review">Review</li>
+      <li data-step="install">Install</li>
+    </ol>
+    <p class="rail-note" id="mode-note" hidden></p>
+  </aside>
+
+  <main class="stage">
+    <!-- Welcome -->
+    <section class="screen" data-screen="welcome">
+      <p class="eyebrow">Installer</p>
+      <h1>Install YVIS on this computer</h1>
+      <p class="lead">A few questions, a summary to check, then YVIS is copied to your disk. Nothing is written before you confirm the summary.</p>
+      <dl class="facts" id="machine"></dl>
+    </section>
+
+    <!-- Region -->
+    <section class="screen" data-screen="region">
+      <p class="eyebrow">Step 2 of 7</p>
+      <h1>Language and region</h1>
+      <div class="fields">
+        <label class="field"><span>Language</span><select id="locale"></select><small data-error="locale"></small></label>
+        <label class="field"><span>Keyboard layout</span><select id="keymap"></select><small data-error="keymap"></small></label>
+        <label class="field"><span>Time zone</span><select id="timezone"></select><small data-error="timezone"></small></label>
+      </div>
+    </section>
+
+    <!-- Disk -->
+    <section class="screen" data-screen="disk">
+      <p class="eyebrow">Step 3 of 7</p>
+      <h1>Where to install</h1>
+      <div class="choice-row" role="radiogroup">
+        <button class="choice" data-disk-mode="auto" role="radio">
+          <b>Erase a disk</b><span>YVIS takes the whole disk. Simple, and the only mode with encryption.</span>
+        </button>
+        <button class="choice" data-disk-mode="manual" role="radio">
+          <b>Choose partitions</b><span>Next to another system: pick partitions you prepared beforehand.</span>
+        </button>
+      </div>
+      <div id="disk-auto">
+        <h2>Disk</h2>
+        <div class="cards" id="disks"></div>
+        <small data-error="disk.device"></small>
+      </div>
+      <div id="disk-manual" hidden>
+        <div class="fields">
+          <label class="field"><span>System partition (formatted)</span><select id="root-part"></select><small data-error="disk.root"></small></label>
+          <label class="field" id="efi-field"><span>EFI system partition</span><select id="efi-part"></select><small data-error="disk.efi"></small></label>
+          <label class="check" id="efi-format-field"><input type="checkbox" id="efi-format"><span>Format the EFI partition <em>(not if Windows boots from it)</em></span></label>
+        </div>
+      </div>
+      <small data-error="disk"></small><small data-error="disk.mode"></small>
+    </section>
+
+    <!-- Software -->
+    <section class="screen" data-screen="software">
+      <p class="eyebrow">Step 4 of 7</p>
+      <h1>Desktop and profile</h1>
+      <h2>Desktop <em>one, or both to choose at login</em></h2>
+      <div class="choice-row" id="desktops"></div>
+      <h2>Profile</h2>
+      <div class="segmented" id="profiles" role="radiogroup"></div>
+      <p class="hint" id="profile-hint"></p>
+      <h2>Graphics</h2>
+      <label class="toggle" id="nvidia-field">
+        <input type="checkbox" id="nvidia">
+        <span class="switch"></span>
+        <span><b>NVIDIA driver</b> <span id="nvidia-hint"></span></span>
+      </label>
+    </section>
+
+    <!-- Account -->
+    <section class="screen" data-screen="account">
+      <p class="eyebrow">Step 5 of 7</p>
+      <h1>Your account</h1>
+      <div class="fields two">
+        <label class="field"><span>Full name</span><input id="fullname" autocomplete="off"><small data-error="user.fullname"></small></label>
+        <label class="field"><span>User name</span><input id="username" autocomplete="off" spellcheck="false"><small data-error="user.name"></small></label>
+        <label class="field"><span>Password</span><input id="password" type="password" autocomplete="new-password"><small data-error="user.password"></small></label>
+        <label class="field"><span>Password, again</span><input id="password2" type="password" autocomplete="new-password"><small data-error="password2"></small></label>
+        <label class="field"><span>Computer name</span><input id="hostname" spellcheck="false"><small data-error="hostname"></small></label>
+      </div>
+      <h2>Security</h2>
+      <label class="toggle" id="encrypt-field">
+        <input type="checkbox" id="encrypt">
+        <span class="switch"></span>
+        <span><b>Encrypt the disk</b> <span id="encrypt-hint">A passphrase is asked at every start. Without it, the data cannot be read: keep it safe.</span></span>
+      </label>
+      <div class="fields two" id="passphrase-fields" hidden>
+        <label class="field"><span>Passphrase</span><input id="passphrase" type="password" autocomplete="new-password"><small data-error="encrypt.passphrase"></small></label>
+        <label class="field"><span>Passphrase, again</span><input id="passphrase2" type="password" autocomplete="new-password"><small data-error="passphrase2"></small></label>
+      </div>
+      <small data-error="encrypt"></small>
+    </section>
+
+    <!-- Review -->
+    <section class="screen" data-screen="review">
+      <p class="eyebrow">Step 6 of 7</p>
+      <h1>Check before writing</h1>
+      <ul class="summary" id="summary"></ul>
+      <label class="check danger" id="consent-field">
+        <input type="checkbox" id="consent">
+        <span id="consent-text">I understand that the data shown in red will be erased.</span>
+      </label>
+      <details class="plan"><summary>Steps of the installation</summary><ol id="plan"></ol></details>
+    </section>
+
+    <!-- Install -->
+    <section class="screen" data-screen="install">
+      <p class="eyebrow" id="install-eyebrow">Installing</p>
+      <h1 id="install-title">Installing YVIS</h1>
+      <div class="meter"><div class="meter-fill" id="meter"></div></div>
+      <ol class="progress" id="progress"></ol>
+      <details class="log" id="log-box"><summary>Details</summary><pre id="log"></pre></details>
+      <p class="lead" id="install-end" hidden></p>
+    </section>
+
+    <footer class="nav">
+      <button class="ghost" id="back">Back</button>
+      <span class="spacer"></span>
+      <span class="nav-error" id="nav-error" role="alert"></span>
+      <button class="primary" id="next">Next</button>
+    </footer>
+  </main>
+</div>
+</body>
+</html>
