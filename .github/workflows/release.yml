@@ -1,0 +1,48 @@
+# Publishes an ISO built and boot-tested by a yvis-iso run as a GitHub
+# release (files up to 2 GiB). The site links to the latest one.
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      iso_run:
+        description: yvis-iso run whose ISO is published (its boots must have passed)
+        required: true
+      tag:
+        description: release tag, e.g. v0.1-preview.1
+        required: true
+      notes:
+        description: release notes file
+        default: release/notes-0.1-preview.md
+      title:
+        default: YVIS 0.1 (console preview)
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: The ISO, and the result of its boot test
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download "${{ inputs.iso_run }}" -n yvis-iso -D iso
+          ls -l iso
+          (cd iso && sha256sum -c ./*.sha256)
+          # the four regular boots must have passed in that run
+          step=$(gh api "repos/${{ github.repository }}/actions/runs/${{ inputs.iso_run }}/jobs" \
+            --jq '.jobs[].steps[] | select(.name | startswith("Boot the ISO (disc")) | .conclusion')
+          echo "boot test: $step"
+          [ "$step" = success ]
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ inputs.tag }}" iso/*.iso iso/*.sha256 \
+            --prerelease --target "$GITHUB_SHA" \
+            --title "${{ inputs.title }}" --notes-file "${{ inputs.notes }}"
+          gh release view "${{ inputs.tag }}" --json assets --jq '.assets[] | "\(.name) \(.size)"' >> "$GITHUB_STEP_SUMMARY"

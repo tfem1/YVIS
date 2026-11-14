@@ -25,7 +25,7 @@ changing one is a decision of the same kind, recorded here.
 | NVIDIA | Open kernel modules (GTX 1650 and later); older cards use nouveau |
 | ISO over 2 GiB | Allowed (changed 2026-11-14): one ISO may exceed 2 GiB |
 | Hosting | Packages on GitHub; ISOs on SourceForge (no per-file limit), GitHub Releases for files under 2 GiB; a minimal site of its own on Cloudflare Pages (`site/`, yvis.pages.dev) |
-| Publication | Public development ISOs as soon as a desktop boots |
+| Publication | Public development ISOs as soon as a desktop boots; the console ISO published as a preview at the owner's request (2026-11-14) |
 | Code name | None |
 | Extras wanted | zram, a welcome screen at first start, the gaming profile |
 | Extras declined | Firewall on by default, copy-to-RAM boot entry, `yone rollback`, backup LTS kernel, update robot, btrfs snapshots |

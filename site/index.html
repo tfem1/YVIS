@@ -61,6 +61,8 @@
   }
   .download p { margin: 0; }
   .download p + p { margin-top: 8px; color: var(--muted); }
+  .download .size { color: var(--muted); font-size: 15px; }
+  pre.dd { margin-top: 12px; }
   footer {
     margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line);
     color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 20px;
@@ -109,9 +111,11 @@
 
   <h2>Download</h2>
   <div class="download">
-    <p>No image yet.</p>
-    <p>The first public ISO comes out when a desktop boots. Until then, you can build it yourself: <a href="https://github.com/tfem1/YVIS/blob/main/BUILDING.md">BUILDING.md</a>.</p>
+    <p><a href="https://github.com/tfem1/YVIS/releases/download/v0.1-preview.1/yvis-0.1-x86_64.iso">yvis-0.1-x86_64.iso</a> &nbsp;<span class="size">553 MiB &middot; <a href="https://github.com/tfem1/YVIS/releases/download/v0.1-preview.1/yvis-0.1-x86_64.iso.sha256">SHA-256</a></span></p>
+    <p>A preview: the base system as a live ISO that boots to a root console. No desktop yet. BIOS or UEFI, Secure Boot off. <a href="https://github.com/tfem1/YVIS/releases/tag/v0.1-preview.1">Release notes</a>.</p>
   </div>
+<pre class="dd"><span class="p">$ </span>sha256sum -c yvis-0.1-x86_64.iso.sha256
+<span class="p">$ </span>sudo dd if=yvis-0.1-x86_64.iso of=/dev/sdX bs=4M oflag=sync</pre>
 
   <footer>
     <a href="https://github.com/tfem1/YVIS">Source</a>
