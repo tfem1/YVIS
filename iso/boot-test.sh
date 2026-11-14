@@ -109,7 +109,7 @@ s.sendall(b"screendump " + sys.argv[2].encode() + b"\n"); time.sleep(3)' \
     "${credentials[@]}" \
     -display none -serial "file:$work/$name.console" -serial "file:$report" -no-reboot \
     -monitor "unix:$work/$name.monitor,server,nowait" \
-    > /dev/null 2>&1 || rc=$?
+    > "$work/$name.qemu" 2>&1 || rc=$?
   kill "$shooter" 2> /dev/null || true
   sed -i 's/\r$//' "$report"
   grep -a '^YVIS-TEST' "$report" | cut -c1-200 || true
@@ -131,7 +131,11 @@ s.sendall(b"screendump " + sys.argv[2].encode() + b"\n"); time.sleep(3)' \
   check "but not to the medium" '^YVIS-TEST medium-untouched=yes$'
   check "root is logged in on the first console" '^YVIS-TEST login=root@tty1$'
   check "the network got an address by DHCP" '^YVIS-TEST ipv4=10\.0\.2\.'
-  [ "$rc" -eq 0 ] || { echo "  FAIL  QEMU ended with status $rc (124: time limit)"; bad=$((bad + 1)); }
+  if [ "$rc" -ne 0 ]; then
+    echo "  FAIL  QEMU ended with status $rc (124: time limit)"
+    bad=$((bad + 1))
+    sed 's/^/  | qemu: /' "$work/$name.qemu" | head -n 20
+  fi
   if [ "$bad" -ne 0 ]; then
     echo "  ---- last lines of its console"
     tail -n 40 "$work/$name.console" 2> /dev/null | tr -d '\r' | sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g; s/^/  | /' || true

@@ -111,7 +111,7 @@ jobs:
         run: |
           sudo apt-get install -y -qq exfatprogs > /dev/null
           sudo GH_TOKEN="$GH_TOKEN" bash iso/ventoy-stick.sh "$(ls "$RUNNER_TEMP"/iso/yvis-*.iso)" "$RUNNER_TEMP/ventoy.img"
-          sudo chmod a+r "$RUNNER_TEMP/ventoy.img"
+          sudo chown "$(id -u):$(id -g)" "$RUNNER_TEMP/ventoy.img"  # QEMU writes to the stick
           echo "Ventoy $(cat "$RUNNER_TEMP/ventoy.img.ventoy-version")" >> "$GITHUB_STEP_SUMMARY"
           YVIS_VENTOY_IMG="$RUNNER_TEMP/ventoy.img" YVIS_BOOT_CASES="bios-ventoy uefi-ventoy" \
             bash iso/boot-test.sh "$(ls "$RUNNER_TEMP"/iso/yvis-*.iso)" "$RUNNER_TEMP/boot"
