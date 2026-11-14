@@ -163,7 +163,7 @@ sh tools/tests/gpu-detect.sh
 
 ## The site
 
-One static page, published by Cloudflare Pages from this directory at every
+One static page (`site/`), published by Cloudflare Pages at every
 push to `main` (no build step): https://yvis.pages.dev
 
 Cloudflare settings (Workers & Pages > yvis > Settings > Build):
